@@ -137,5 +137,6 @@ namespace IHHook {
 		{"luaopen_debug", "48 83 EC 28 4C 8D 05 ? ? ? ? 48 8D 15 ? ? ? ? E8 ? ? ? ? B8 01 00 00 00 48 83 C4 28 C3"},//WARNING: Could not find unique Pattern, found 3 matches
 		{"luaopen_package", "53 48 83 EC 20 48 8D 15 ? ? ? ? 48 89 74 24 ?"},
 		{"luaL_openlibs", "48 89 5C 24 ? 57 48 83 EC 20 48 8B 05 ? ? ? ? 48 89 CF 48 8D 1D ? ? ? ?"},
+		{"UpdatePlayerCamo", "40 57 41 56 48 83 EC 48 48 8B F9 48 8B 49 38 44 8B 91 ? ? ? ? 44 8B 81 ? ? ? ? 44 89 57 58 48 8B 41 78 45 8B F2 41 0F B6 14 02 80 FA FF"}
 	};//map mgsvtpp_patterns
 }//namespace IHHook

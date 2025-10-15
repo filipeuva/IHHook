@@ -179,6 +179,9 @@ typedef int (__fastcall luaopen_debugFunc)(lua_State * L);
 typedef int (__fastcall luaopen_packageFunc)(lua_State * L);
 typedef void (__fastcall luaL_openlibsFunc)(lua_State * L);
 
+//octocamo
+typedef void (__fastcall UpdatePlayerCamoFunc)(void* self);
+
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
 extern PathCode64Func* PathCode64;
@@ -345,3 +348,5 @@ extern luaopen_debugFunc* luaopen_debug;
 extern luaopen_packageFunc* luaopen_package;
 extern luaL_openlibsFunc* luaL_openlibs;
 
+//octocamo
+extern UpdatePlayerCamoFunc* UpdatePlayerCamo;

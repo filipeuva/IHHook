@@ -25,6 +25,8 @@
 #include "Hooks_FoxString.h" //ZIP: FoxString hook
 
 #include <string>
+
+#include "Hooks_Camo.h"
 #include "hooks/mgsvtpp_func_typedefs.h"
 
 extern void LoadImguiBindings(lua_State* lState);
@@ -325,6 +327,7 @@ namespace IHHook {
 			Hooks_Buddy::CreateLibs(L); //ZIP: For buddies
 			Hooks_Vehicle::CreateLibs(L); //ZIP: For vehicles
 			Hooks_FoxString::CreateLibs(L); //ZIP: FoxString hook
+			Hooks_Camo::CreateLibs(L);
 		}//CreateLibs
 
 		//tex: replacement for MGSVs stubbed out "print", original lua implementation in lbaselib.c

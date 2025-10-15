@@ -174,5 +174,6 @@ namespace IHHook {
 		{"luaopen_debug", 0x14c21ea00},
 		{"luaopen_package", 0x14c21ee20},
 		{"luaL_openlibs", 0x14c1fd0c0},
+		{"UpdatePlayerCamo", 0x140fdd590},
 	};//map mgsvtpp_adresses_1_0_15_3_en
 }//namespace IHHook

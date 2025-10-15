@@ -172,3 +172,6 @@ luaopen_mathFunc* luaopen_math;
 luaopen_debugFunc* luaopen_debug;
 luaopen_packageFunc* luaopen_package;
 luaL_openlibsFunc* luaL_openlibs;
+
+//octocamo
+UpdatePlayerCamoFunc* UpdatePlayerCamo;

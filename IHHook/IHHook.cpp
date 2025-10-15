@@ -31,6 +31,7 @@
 #include <sstream>
 
 
+#include "Hooks_Camo.h"
 #include "IHMenu.h"
 #include "StyleEditor.h"
 
@@ -303,7 +304,7 @@ namespace IHHook {
 
 			auto tend = std::chrono::high_resolution_clock::now();
 			auto durationShort = std::chrono::duration_cast<std::chrono::microseconds>(tend - tstart).count();
-			spdlog::debug("IHHook::CreateHooks total time(microseconds): {}µs", durationShort);
+			spdlog::debug("IHHook::CreateHooks total time(microseconds): {}ï¿½s", durationShort);
 		}//if doHooks
 
 		PipeServer::StartPipeServer();
@@ -878,5 +879,6 @@ namespace IHHook {
 		Hooks_Buddy::CreateHooks(); //ZIP: For buddies
 		Hooks_Vehicle::CreateHooks(); //ZIP: For vehicles
 		Hooks_FoxString::CreateHooks(); //ZIP: FoxString hook
+		Hooks_Camo::CreateHooks();
 	}//CreateAllHooks
 }//namespace IHHook

@@ -99,7 +99,7 @@
       <AdditionalLibraryDirectories>./lib</AdditionalLibraryDirectories>
     </Link>
     <CustomBuildStep>
-      <Command>COPY "$(TargetDir)IHHook.dll" "C:\Games\Steam\steamapps\common\MGS_TPP\dinput8.dll"  /Y</Command>
+      <Command>COPY "$(TargetDir)IHHook.dll" "C:\Program Files (x86)\Steam\steamapps\common\MGS_TPP\dinput8.dll"  /Y</Command>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -172,6 +172,7 @@ copy /Y "$(SolutionDir)Readme.md" "$(SolutionDir)makebite\Readme.txt"</Command>
     <ClInclude Include="hooks\mgsvtpp_func_typedefs_manual.h" />
     <ClInclude Include="hooks\mgsvtpp_patterns.h" />
     <ClInclude Include="Hooks_Buddy.h" />
+    <ClInclude Include="Hooks_Camo.h" />
     <ClInclude Include="Hooks_Character.h" />
     <ClInclude Include="Hooks_CityHash.h" />
     <ClInclude Include="Hooks_FNVHash.h" />
@@ -227,6 +228,7 @@ copy /Y "$(SolutionDir)Readme.md" "$(SolutionDir)makebite\Readme.txt"</Command>
     <ClCompile Include="hooks\mgsvtpp_funcptr_defs.cpp" />
     <ClCompile Include="hooks\mgsvtpp_funcptr_set.cpp" />
     <ClCompile Include="Hooks_Buddy.cpp" />
+    <ClCompile Include="Hooks_Camo.cpp" />
     <ClCompile Include="Hooks_Character.cpp" />
     <ClCompile Include="Hooks_CityHash.cpp" />
     <ClCompile Include="dllmain.cpp">
