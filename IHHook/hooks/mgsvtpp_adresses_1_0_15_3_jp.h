@@ -175,5 +175,6 @@ namespace IHHook {
 		{"luaopen_package", 0x141a368c0},
 		{"luaL_openlibs", 0x14c9a5860},
 		{"UpdatePlayerCamo", 0x140fdd590},
+		{"SetSuitCamo", 0x140fdc5d0},
 	};//map mgsvtpp_adresses_1_0_15_3_jp
 }//namespace IHHook

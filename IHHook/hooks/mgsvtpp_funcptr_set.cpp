@@ -176,7 +176,8 @@ namespace IHHook {
 		luaopen_debug = (luaopen_debugFunc*)addressSet["luaopen_debug"];
 		luaopen_package = (luaopen_packageFunc*)addressSet["luaopen_package"];
 		luaL_openlibs = (luaL_openlibsFunc*)addressSet["luaL_openlibs"];
-		UpdatePlayerCamo = (UpdatePlayerCamoFunc*)addressSet["luaL_openlibs"];
+		UpdatePlayerCamo = (UpdatePlayerCamoFunc*)addressSet["UpdatePlayerCamo"];
+		SetSuitCamo = (SetSuitCamoFunc*)addressSet["luaL_openlibs"];
 	}//SetFuncPtrs
 
 }//namespace IHHook
