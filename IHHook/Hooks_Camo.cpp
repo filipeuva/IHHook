@@ -14,9 +14,7 @@ namespace IHHook {
 	namespace Hooks_Camo {
 
 		static std::atomic    gCamoScore{0.0f};   // −1000..1000 after Update
-		static std::atomic<uint16_t> gSurfaceIdx{0};     // 0..N (≈82)
-		
-		static inline bool JustPressed(int vk) { return (GetAsyncKeyState(vk) & 1) != 0; }
+		static std::atomic gSurfaceIdx{0};     // 0..N (≈82)
 		
 		void __fastcall UpdatePlayerCamoHook(void* self) {
 			// spdlog::debug(__func__);
