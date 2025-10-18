@@ -178,4 +178,5 @@ UpdatePlayerCamoFunc* UpdatePlayerCamo;
 SetSuitCamoFunc* SetSuitCamo;
 
 //ui
-OnScopeZoomUiFunc* OnScopeZoomUi;
+ScopeZoomUiUpdateFunc* ScopeZoomUiUpdate;
+ScopeZoomUiSetHelpAssetFunc* ScopeZoomUiSetHelpAsset;

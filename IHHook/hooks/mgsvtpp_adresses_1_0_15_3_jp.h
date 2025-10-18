@@ -177,6 +177,7 @@ namespace IHHook {
 		//TODO - Ask how to get these
 		{"UpdatePlayerCamo", 0x140fdd590},
 		{"SetSuitCamo", 0x140fdc5d0},
-		{"OnScopeZoomUi", 0x14a452100},
+		{"ScopeZoomUiUpdate", 0x14161c3e0},
+		{"ScopeZoomUiSetHelpAsset", 0x14a452100},
 	};//map mgsvtpp_adresses_1_0_15_3_jp
 }//namespace IHHook
