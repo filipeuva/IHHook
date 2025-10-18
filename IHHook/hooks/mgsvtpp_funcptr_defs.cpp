@@ -179,4 +179,6 @@ SetSuitCamoFunc* SetSuitCamo;
 
 //ui
 ScopeZoomUiUpdateFunc* ScopeZoomUiUpdate;
+ScopeZoomUiUpdateSightFunc* ScopeZoomUiUpdateSight;
+ScopeZoomUiUpdateScopeLengthFunc* ScopeZoomUiUpdateScopeLength;
 ScopeZoomUiSetHelpAssetFunc* ScopeZoomUiSetHelpAsset;

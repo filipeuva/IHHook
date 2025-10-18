@@ -8,101 +8,107 @@
 #include "IHHook.h"//DEBUGNOW
 #include "hooks/mgsvtpp_func_typedefs.h"
 
-#define VTIDX_UI_SHOW    (0x2A8/8)  // ui->Show(node, showFlag)
-#define VTIDX_DRAW_SUBM  (0x708/8)  // draw->SubmitText(node, ctx, text, a5)
-
 namespace IHHook
 {
     namespace Hooks_Ui
     {
-        enum OverrideMode : int { MODE_OFF = 0, MODE_ONLY_WHEN_NOT_ADS = 1, MODE_ALWAYS = 2 };
+        // -------- utils
+        static inline uint8_t* get_text_section(HMODULE m, size_t& outSize)
+        {
+            auto dos = (IMAGE_DOS_HEADER*)m;
+            auto nt = (IMAGE_NT_HEADERS*)((uint8_t*)m + dos->e_lfanew);
+            auto sh = IMAGE_FIRST_SECTION(nt);
+            for (unsigned i = 0; i < nt->FileHeader.NumberOfSections; i++)
+            {
+                char name[9]{};
+                memcpy(name, sh[i].Name, 8);
+                if (strcmp(name, ".text") == 0)
+                {
+                    outSize = sh[i].Misc.VirtualSize ? sh[i].Misc.VirtualSize : sh[i].SizeOfRawData;
+                    return (uint8_t*)m + sh[i].VirtualAddress; // mapped VA
+                }
+            }
+            outSize = 0;
+            return nullptr;
+        }
 
-        static std::atomic<int> gMode{MODE_ONLY_WHEN_NOT_ADS};
-        static std::atomic<int> gDoShow{1};
-        static std::atomic<int> gEnableShadow{1};
-
-        static char gLabel[32] = "Hello";
-        static char gValue[64] = "World";
-
-        // Cached fn ptrs (set once layout binds; never call inside SetZoomHelpAsset)
-        using ShowFn = void(*)(void* ui, void* node, uint64_t show);
-        using SubmitFn = void(*)(void* draw, void* node, void* ctx, const char* txt, int a5);
-        static std::atomic<ShowFn> gShow{nullptr};
-        static std::atomic<SubmitFn> gSubmit{nullptr};
+        static inline void* aob_find(uint8_t* base, size_t size, const char* pat)
+        {
+            std::vector<int> bytes;
+            bytes.reserve(512);
+            for (const char* p = pat; *p;)
+            {
+                while (*p == ' ') ++p;
+                if (!*p) break;
+                if (p[0] == '?' && p[1] == '?')
+                {
+                    bytes.push_back(-1);
+                    p += 2;
+                }
+                else
+                {
+                    unsigned v = 0;
+                    sscanf(p, "%2x", &v);
+                    bytes.push_back((int)v);
+                    p += 2;
+                }
+                while (*p == ' ') ++p;
+            }
+            const size_t n = bytes.size();
+            for (size_t i = 0; i + n <= size; i++)
+            {
+                bool ok = true;
+                for (size_t j = 0; j < n; j++)
+                {
+                    int b = bytes[j];
+                    if (b >= 0 && base[i + j] != (uint8_t)b)
+                    {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok) return base + i;
+            }
+            return nullptr;
+        }
 
         template <class T=void*>
-        static inline T RP(void* base, size_t off) { return *(T*)((uint8_t*)base + off); }
+        static inline T RP(void* p, size_t off) { return *(T*)((uint8_t*)p + off); }
 
         static inline void** VT(void* obj) { return obj ? *(void***)obj : nullptr; }
 
-        // ---------- hooks ----------
+        // -------- modes
+        enum OverrideMode : int { MODE_OFF = 0, MODE_ONLY_WHEN_NOT_ADS = 1, MODE_ALWAYS = 2 };
 
-        static void PostWriteZoom(void* self)
+        // -------- state
+        struct ZoomRefs
         {
-            spdlog::debug("0");
-            const int mode = gMode.load(std::memory_order_relaxed);
-            if (mode == MODE_OFF) return;
+            void* label = nullptr; // B: +0x198, fallback A: +0x178
+            void* main = nullptr; // B: +0x1A0, fallback A: +0x180
+            void* shad = nullptr; // B: +0x1A8, fallback A: +0x188
+        };
 
-            spdlog::debug("1");
-            void* sightData = RP(self, 0x50);
-            if (!sightData) return;
-            const uint8_t flags = *(uint8_t*)((uint8_t*)sightData + 0x328);
-            if (mode == MODE_ONLY_WHEN_NOT_ADS && (flags & 1)) return;
+        static std::atomic<ZoomRefs> g_refs;
+        static std::atomic<int> g_ads{0};
+        static std::atomic<int> g_mode{MODE_ALWAYS};
+        static char g_label[32] = "Hello";
+        static char g_value[64] = "World";
 
-            spdlog::debug("2");
-            // nodes first; prefer variant B, fallback A
-            void* nLabel = RP(self, 0x198);
-            void* nMain = RP(self, 0x1A0);
-            void* nShadow = RP(self, 0x1A8);
-            if (!nMain)
-            {
-                nLabel = RP(self, 0x178);
-                nMain = RP(self, 0x180);
-                nShadow = RP(self, 0x188);
-            }
-            if (!nMain) return;
+        // ---- engine types
+        using Fn_SubmitText        = void(*)(void* draw, void* node, void* ctx, const char* txt, int a5);
 
-            spdlog::debug("3");
-            // services
-            void* ui = RP(self, 0x60);
-            void* mgr48 = RP(self, 0x48);
-            void* draw = mgr48 ? RP<void*>(mgr48, 0x20) : nullptr;
-            void* ctx = RP(self, 0x80);
-            if (!ui || !draw || !ctx) return;
+        // ---- originals
+        static Fn_SubmitText        oSubmitText=nullptr;
 
-            spdlog::debug("4");
-            // cached fn ptrs; do not touch vtables now
-            SubmitFn Submit = gSubmit.load(std::memory_order_acquire);
-            ShowFn Show = gShow.load(std::memory_order_acquire);
-            if (!Submit) return;
-
-            spdlog::debug("5");
-            const bool useShow = gDoShow.load(std::memory_order_relaxed) != 0;
-            const bool useShadow = gEnableShadow.load(std::memory_order_relaxed) != 0;
-
-            if (useShow && Show)
-            {
-                if (nLabel)
-                {
-                    spdlog::debug("6");
-                    Show(ui, nLabel, 1);
-                }
-                spdlog::debug("7");
-                Show(ui, nMain, 1);
-                if (useShadow && nShadow)
-                {
-                    spdlog::debug("8");
-                    Show(ui, nShadow, 1);
-                }
-            }
-            // spdlog::debug("9");
-            if (nLabel) Submit(draw, nLabel, ctx, gLabel, 1);
-            // spdlog::debug("10");
-            // Submit(draw, nMain, ctx, gValue, 1);
-            // spdlog::debug("11");
-            // if (useShadow && nShadow) Submit(draw, nShadow, ctx, gValue, 1);
+        
+        // -------- helpers
+        static inline bool allow_override()
+        {
+            int m = g_mode.load(std::memory_order_relaxed);
+            if (m == MODE_ALWAYS) return true;
+            if (m == MODE_ONLY_WHEN_NOT_ADS) return g_ads.load(std::memory_order_relaxed) == 0;
+            return false;
         }
-
 
         // Hooks 
         void __fastcall ScopeZoomUiUpdateHook(void* self)
@@ -111,11 +117,75 @@ namespace IHHook
 
             ScopeZoomUiUpdate(self);
 
-            if (RP<void*>(self,0x1A0) || RP<void*>(self,0x180))
+            void* st = RP(self, 0x50);
+            if (st)
             {
-                PostWriteZoom(self);
+                uint8_t flags = *(uint8_t*)((uint8_t*)st + 0x328);
+                g_ads.store((flags & 1) ? 1 : 0, std::memory_order_relaxed);
             }
         } //ScopeZoomUiUpdateHook
+
+        // void __fastcall ScopeZoomUiUpdateSightHook(void* self)
+        // {
+        //     spdlog::debug(__func__);
+        //
+        //     ScopeZoomUiUpdateSight(self);
+        //
+        //
+        // } //ScopeZoomUiUpdateSightHook
+
+        void __fastcall ScopeZoomUiUpdateScopeLengthHook(void* self)
+        {
+            spdlog::debug(__func__);
+
+            // steal SubmitText on first pass only, from the live draw instance
+            if (!oSubmitText)
+            {
+                void* mgr48 = RP(self, 0x48);
+                void* draw = mgr48 ? RP<void*>(mgr48, 0x20) : nullptr;
+                if (draw)
+                {
+                    void** v = VT(draw);
+                    if (v)
+                    {
+                        auto p = (Fn_SubmitText)v[0x708 / 8];
+                        if (p)
+                        {
+                            MH_CreateHook(
+                                (LPVOID)p, (LPVOID)+[](void* draw, void* node, void* ctx, const char* txt, int a5)
+                                {
+                                    spdlog::debug("");
+                                    ZoomRefs z = g_refs.load(std::memory_order_acquire);
+                                    spdlog::info("SubmitText Hook: text=\"{}\"", txt);
+                                    if (allow_override())
+                                    {
+                                        if (node == z.label || node == z.main || node == z.shad) spdlog::debug("Should override!");
+                                        if (node == z.label) txt = g_label;
+                                        else if (node == z.main || node == z.shad) txt = g_value;
+
+                                        if (std::string (txt) == "ZOOM")
+                                        {
+                                            spdlog::info("SubmitText Hook: z.label=\"{}\"", txt);
+                                            txt = g_label;
+                                        } else if (std::string(txt) == "X4.0")
+                                        {
+                                            spdlog::debug("Should override!");
+                                            txt = g_value;
+                                        }
+                                    } else
+                                    {
+                                        spdlog::debug("Not allowed to override");
+                                    }
+                                    oSubmitText(draw, node, ctx, txt, a5);
+                                }, (LPVOID*)&oSubmitText);
+                            MH_EnableHook((LPVOID)p);
+                        }
+                    }
+                }
+            }
+            
+            ScopeZoomUiUpdateScopeLength(self);
+        } //ScopeZoomUiUpdateScopeLength
 
         void __fastcall ScopeZoomUiSetHelpAssetHook(void* self, void* layoutA, void* layoutB)
         {
@@ -123,32 +193,30 @@ namespace IHHook
 
             ScopeZoomUiSetHelpAsset(self, layoutA, layoutB);
 
-            void* ui = RP(self, 0x60);
-            void* ctx = RP(self, 0x80);
-            (void)ctx; // just to verify non-null binding
-            void* mgr48 = RP(self, 0x48);
-            void* draw = mgr48 ? RP<void*>(mgr48, 0x20) : nullptr;
-
-            if (!ui || !draw) return;
-
-            void** uvt = VT(ui);
-            void** dvt = VT(draw);
-            if (!uvt || !dvt) return;
-
-            auto show = (ShowFn)uvt[VTIDX_UI_SHOW];
-            auto submit = (SubmitFn)dvt[VTIDX_DRAW_SUBM];
-
-            // publish atomically; never touched again
-            gShow.store(show, std::memory_order_release);
-            gSubmit.store(submit, std::memory_order_release);
-        }
+            ZoomRefs z{};
+            // prefer B-layout nodes
+            z.label = RP(self, 0x198);
+            z.main = RP(self, 0x1A0);
+            z.shad = RP(self, 0x1A8);
+            if (!z.main)
+            {
+                z.label = RP(self, 0x178);
+                z.main = RP(self, 0x180);
+                z.shad = RP(self, 0x188);
+            }
+            g_refs.store(z, std::memory_order_release);
+        } //ScopeZoomUiSetHelpAssetHook
 
         void CreateHooks()
         {
             CREATE_HOOK(ScopeZoomUiUpdate)
+            // CREATE_HOOK(ScopeZoomUiUpdateSight)
+            CREATE_HOOK(ScopeZoomUiUpdateScopeLength)
             CREATE_HOOK(ScopeZoomUiSetHelpAsset)
 
             ENABLEHOOK(ScopeZoomUiUpdate)
+            // ENABLEHOOK(ScopeZoomUiUpdateSight)
+            ENABLEHOOK(ScopeZoomUiUpdateScopeLength)
             ENABLEHOOK(ScopeZoomUiSetHelpAsset)
         } //CreateHooks
 

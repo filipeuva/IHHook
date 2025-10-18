@@ -178,6 +178,8 @@ namespace IHHook {
 		{"UpdatePlayerCamo", 0x140fdd590},
 		{"SetSuitCamo", 0x140fdc5d0},
 		{"ScopeZoomUiUpdate", 0x14161c3e0},
+		{"ScopeZoomUiUpdateSight", 0x14161c960},
+		{"ScopeZoomUiUpdateScopeLength", 0x14161c560},
 		{"ScopeZoomUiSetHelpAsset", 0x14a452100},
 	};//map mgsvtpp_adresses_1_0_15_3_jp
 }//namespace IHHook

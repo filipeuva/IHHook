@@ -179,6 +179,8 @@ namespace IHHook {
 		UpdatePlayerCamo = (UpdatePlayerCamoFunc*)addressSet["UpdatePlayerCamo"];
 		SetSuitCamo = (SetSuitCamoFunc*)addressSet["SetSuitCamo"];
 		ScopeZoomUiUpdate = (ScopeZoomUiUpdateFunc*)addressSet["ScopeZoomUiUpdate"];
+		ScopeZoomUiUpdateSight = (ScopeZoomUiUpdateFunc*)addressSet["ScopeZoomUiUpdateSight"];
+		ScopeZoomUiUpdateSight = (ScopeZoomUiUpdateScopeLengthFunc*)addressSet["ScopeZoomUiUpdateScopeLength"];
 		ScopeZoomUiSetHelpAsset = (ScopeZoomUiSetHelpAssetFunc*)addressSet["ScopeZoomUiSetHelpAsset"];
 	}//SetFuncPtrs
 

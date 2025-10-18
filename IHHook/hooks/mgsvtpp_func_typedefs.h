@@ -183,6 +183,8 @@ typedef void (__fastcall luaL_openlibsFunc)(lua_State * L);
 typedef void (__fastcall UpdatePlayerCamoFunc)(void* self);
 typedef void (__fastcall SetSuitCamoFunc)(void* self, void* ctx);
 typedef void (__fastcall ScopeZoomUiUpdateFunc)(void* self);
+typedef void (__fastcall ScopeZoomUiUpdateSightFunc)(void* self);
+typedef void (__fastcall ScopeZoomUiUpdateScopeLengthFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiSetHelpAssetFunc)(void* self, void* layoutA, void* layoutB);
 
 //tex the (extern of the) function pointers
@@ -357,4 +359,6 @@ extern SetSuitCamoFunc* SetSuitCamo;
 
 //ui
 extern ScopeZoomUiUpdateFunc* ScopeZoomUiUpdate;
+extern ScopeZoomUiUpdateSightFunc* ScopeZoomUiUpdateSight;
+extern ScopeZoomUiUpdateScopeLengthFunc* ScopeZoomUiUpdateScopeLength;
 extern ScopeZoomUiSetHelpAssetFunc* ScopeZoomUiSetHelpAsset;
