@@ -176,3 +176,6 @@ luaL_openlibsFunc* luaL_openlibs;
 //octocamo
 UpdatePlayerCamoFunc* UpdatePlayerCamo;
 SetSuitCamoFunc* SetSuitCamo;
+
+//ui
+OnScopeZoomUiFunc* OnScopeZoomUi;

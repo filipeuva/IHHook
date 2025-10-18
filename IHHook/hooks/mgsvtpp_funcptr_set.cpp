@@ -177,7 +177,8 @@ namespace IHHook {
 		luaopen_package = (luaopen_packageFunc*)addressSet["luaopen_package"];
 		luaL_openlibs = (luaL_openlibsFunc*)addressSet["luaL_openlibs"];
 		UpdatePlayerCamo = (UpdatePlayerCamoFunc*)addressSet["UpdatePlayerCamo"];
-		SetSuitCamo = (SetSuitCamoFunc*)addressSet["luaL_openlibs"];
+		SetSuitCamo = (SetSuitCamoFunc*)addressSet["SetSuitCamo"];
+		OnScopeZoomUi = (OnScopeZoomUiFunc*)addressSet["OnScopeZoomUi"];
 	}//SetFuncPtrs
 
 }//namespace IHHook

@@ -14,7 +14,7 @@ namespace IHHook {
 	namespace Hooks_Camo {
 
 		static std::atomic    gCamoScore{0.0f};   // −1000..1000 after Update
-		static std::atomic gSurfaceIdx{0};     // 0..N (≈82)
+		static std::atomic gSurfaceIdx{0};     // -1..82
 		
 		void __fastcall UpdatePlayerCamoHook(void* self) {
 			// spdlog::debug(__func__);
@@ -58,10 +58,10 @@ namespace IHHook {
 
 
 			// suit bonus is an integer added as float (CVTDQ2PS). Round to nearest.
-			int suitBonus = static_cast<int>(std::lround(after - before));
+			/*int suitBonus = static_cast<int>(std::lround(after - before));
 			
 			spdlog::info("ExecSuitCorrect: self={} surfId={} bonus={} before={} after={}",
-				self, surfId, suitBonus, before, after);
+				self, surfId, suitBonus, before, after);*/
 
 			gSurfaceIdx.store(surfId, std::memory_order_relaxed);
 

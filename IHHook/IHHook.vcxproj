@@ -181,6 +181,7 @@ copy /Y "$(SolutionDir)Readme.md" "$(SolutionDir)makebite\Readme.txt"</Command>
     <ClInclude Include="Hooks_LoadFile.h" />
     <ClInclude Include="Hooks_Lua.h" />
     <ClInclude Include="Hooks_TPP.h" />
+    <ClInclude Include="Hooks_Ui.h" />
     <ClInclude Include="Hooks_Vehicle.h" />
     <ClInclude Include="IHHook.h" />
     <ClInclude Include="IHMenu.h" />
@@ -251,6 +252,7 @@ copy /Y "$(SolutionDir)Readme.md" "$(SolutionDir)makebite\Readme.txt"</Command>
     <ClCompile Include="Hooks_LoadFile.cpp" />
     <ClCompile Include="Hooks_Lua.cpp" />
     <ClCompile Include="Hooks_Lua_Test.cpp" />
+    <ClCompile Include="Hooks_Ui.cpp" />
     <ClCompile Include="Hooks_Vehicle.cpp" />
     <ClCompile Include="IHHook.cpp" />
     <ClCompile Include="IHMenu.cpp" />

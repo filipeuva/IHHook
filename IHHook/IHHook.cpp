@@ -32,6 +32,7 @@
 
 
 #include "Hooks_Camo.h"
+#include "Hooks_Ui.h"
 #include "IHMenu.h"
 #include "StyleEditor.h"
 
@@ -880,5 +881,6 @@ namespace IHHook {
 		Hooks_Vehicle::CreateHooks(); //ZIP: For vehicles
 		Hooks_FoxString::CreateHooks(); //ZIP: FoxString hook
 		Hooks_Camo::CreateHooks();
+		Hooks_Ui::CreateHooks();
 	}//CreateAllHooks
 }//namespace IHHook

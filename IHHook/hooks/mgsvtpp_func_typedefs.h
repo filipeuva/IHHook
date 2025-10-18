@@ -182,6 +182,7 @@ typedef void (__fastcall luaL_openlibsFunc)(lua_State * L);
 //octocamo
 typedef void (__fastcall UpdatePlayerCamoFunc)(void* self);
 typedef void (__fastcall SetSuitCamoFunc)(void* self, void* ctx);
+typedef void (__fastcall OnScopeZoomUiFunc)(void* self, void* layoutA, void* layoutB);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -352,3 +353,6 @@ extern luaL_openlibsFunc* luaL_openlibs;
 //octocamo
 extern UpdatePlayerCamoFunc* UpdatePlayerCamo;
 extern SetSuitCamoFunc* SetSuitCamo;
+
+//ui
+extern OnScopeZoomUiFunc* OnScopeZoomUi;
