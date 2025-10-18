@@ -1,5 +1,4 @@
 ﻿#include "Hooks_Camo.h"
-#include <stdexcept>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>//exename
@@ -7,12 +6,6 @@
 #include "spdlog/spdlog.h"
 #include "MinHook.h"
 #include "HookMacros.h"
-
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-
-#include <MemoryUtils.h>
 
 #include "IHHook.h"//DEBUGNOW
 #include "hooks/mgsvtpp_func_typedefs.h"
@@ -65,10 +58,6 @@ namespace IHHook {
 			int*  surfMirPtr = reinterpret_cast<int*>(reinterpret_cast<uint8_t*>(self) + 0x250);
 			int   surfId     = *surfMirPtr;
 
-			// fallback: recompute it from the anim block if mirror is missing
-			if (surfId == -1) {
-				surfId = RecomputeSurfaceId(self);
-			}
 
 			// suit bonus is an integer added as float (CVTDQ2PS). Round to nearest.
 			int suitBonus = static_cast<int>(std::lround(after - before));
@@ -79,36 +68,6 @@ namespace IHHook {
 			gSurfaceIdx.store(surfId, std::memory_order_relaxed);
 
 		}//SetSuitCamoHook*/
-
-		static int RecomputeSurfaceId(void* self) {
-			spdlog::debug(__func__);
-			
-			auto s8   = reinterpret_cast<uint8_t*>(self);
-			auto p60  = *reinterpret_cast<uint8_t**>(s8 + 0x60);
-			if (!p60) return -1;
-
-			auto p48   = *reinterpret_cast<uint8_t**>(p60 + 0x48);
-			if (!p48)  return -1;
-			auto p18   = *reinterpret_cast<uint8_t**>(p48 + 0x18);
-			if (!p18)  return -1;
-			auto blk   = *reinterpret_cast<uint8_t**>(p18 + 0x48);
-			if (!blk)  return -1;
-
-			int frame        = *reinterpret_cast<int*>(s8 + 0x7C);
-			int baseFrame    = *reinterpret_cast<int*>(blk + 0x14);
-			int idx          = frame - baseFrame;
-			if (idx < 0)     return -1;
-
-			auto matBase     = *reinterpret_cast<uint8_t**>(blk + 0x08);
-			if (!matBase)    return -1;
-
-			uint8_t* rec     = matBase + static_cast<size_t>(idx) * 0xE0;
-			uint8_t  flags   = *(rec + 0x40);
-			if ((flags & 0x01) == 0) return -1;
-
-			int surfId       = *reinterpret_cast<int*>(rec + 0x44);
-			return surfId;
-		}
 
 		void CreateHooks() {
 			CREATE_HOOK(UpdatePlayerCamo)
