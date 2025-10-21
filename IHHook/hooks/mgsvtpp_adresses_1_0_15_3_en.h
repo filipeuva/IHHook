@@ -174,12 +174,28 @@ namespace IHHook {
 		{"luaopen_debug", 0x14c21ea00},
 		{"luaopen_package", 0x14c21ee20},
 		{"luaL_openlibs", 0x14c1fd0c0},
-		{"UpdatePlayerCamo", 0x140fdd590},
 		//Octocamo
+		{"UpdatePlayerCamo", 0x140fdd590},
 		{"SetSuitCamo", 0x140fdc5d0},
 		{"ScopeZoomUiUpdate", 0x14161c3e0},
 		{"ScopeZoomUiUpdateSight", 0x14161c960},
 		{"ScopeZoomUiUpdateScopeLength", 0x14161c560},
 		{"ScopeZoomUiSetHelpAsset", 0x14a452100},
+		{"SetTextForModelNodeText", 0x144b26d20},//FOX TODO: Add this to Fox Hooks
+		{"InitMbStageSpot", 0x14a42d2d0},
+		{"InitPhaseUi", 0x14d91c685},//FOX TODO: Add this to Fox Hooks
+		{"UpdatePhaseUi", 0x14d91cef0},//FOX TODO: Add this to Fox Hooks
+		{"SetNodeVisibilityWrapper", 0x144b2ceb0},//FOX TODO: Add this to Fox Hooks
+		{"IsNodeVisible", 0x144b004b0},//FOX TODO: Add this to Fox Hooks
+		{"GetUixLayout", 0x144aefd30},//FOX TODO: Add this to Fox Hooks
+		{"GetModelWrapper", 0x144af0b40},//FOX TODO: Add this to Fox Hooks 
+		{"CreateModelNode", 0x141dc0da0},//FOX TODO: Add this to Fox Hooks
+		{"NewUiModelText", 0x14d73ef40},//FOX TODO: Add this to Fox Hooks
+		{"GetModelNodeCommon", 0x14d7736f0},//FOX TODO: Add this to Fox Hooks
+		{"GetModelNodeFromIndex", 0x14d773850},//FOX TODO: Add this to Fox Hooks
+		{"LoadCreationContext", 0x14d743bd0},//FOX TODO: Add this to Fox Hooks
+		{"SetNodeVisibility", 0x14d77a150},//FOX TODO: Add this to Fox Hooks
+		{"ReadNode", 0x141dbcec0},
+		{"InitModelNodeText",0x141db29b0}
 	};//map mgsvtpp_adresses_1_0_15_3_en
 }//namespace IHHook

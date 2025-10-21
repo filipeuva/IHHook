@@ -182,6 +182,21 @@ namespace IHHook {
 		ScopeZoomUiUpdateSight = (ScopeZoomUiUpdateFunc*)addressSet["ScopeZoomUiUpdateSight"];
 		ScopeZoomUiUpdateSight = (ScopeZoomUiUpdateScopeLengthFunc*)addressSet["ScopeZoomUiUpdateScopeLength"];
 		ScopeZoomUiSetHelpAsset = (ScopeZoomUiSetHelpAssetFunc*)addressSet["ScopeZoomUiSetHelpAsset"];
+		SetTextForModelNodeText = (SetTextForModelNodeTextFunc*)addressSet["SetTextForModelNodeText"];
+		InitMbStageSpot = (InitMbStageSpotFunc*)addressSet["InitMbStageSpot"];
+		InitPhaseUi = (InitPhaseUiFunc*)addressSet["InitPhaseUi"];
+		UpdatePhaseUi = (UpdatePhaseUiFunc*)addressSet["UpdatePhaseUi"];
+		SetNodeVisibilityWrapper = (SetNodeVisibilityWrapperFunc*)addressSet["SetNodeVisibilityWrapper"];
+		IsNodeVisible = (IsNodeVisibleFunc*)addressSet["IsNodeVisible"];
+		GetUixLayout = (GetUixLayoutFunc*)addressSet["GetUixLayout"];
+		GetModelWrapper = (GetModelWrapperFunc*)addressSet["GetModelWrapper"];
+		CreateModelNode = (CreateModelNodeFunc*)addressSet["CreateModelNode"];
+		NewUiModelText = (NewUiModelTextFunc*)addressSet["NewUiModelText"];
+		GetModelNodeCommon = (GetModelNodeCommonFunc*)addressSet["GetModelNodeCommon"];
+		GetModelNodeFromIndex = (GetModelNodeFromIndexFunc*)addressSet["GetModelNodeFromIndex"];
+		LoadCreationContext = (LoadCreationContextFunc*)addressSet["LoadCreationContext"];
+		SetNodeVisibility = (SetNodeVisibilityFunc*)addressSet["SetNodeVisibility"];
+		ReadNode = (ReadNodeFunc*)addressSet["ReadNode"];
+		InitModelNodeText = (InitModelNodeTextFunc*)addressSet["InitModelNodeText"];
 	}//SetFuncPtrs
-
 }//namespace IHHook

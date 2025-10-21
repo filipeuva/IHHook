@@ -186,6 +186,32 @@ typedef void (__fastcall ScopeZoomUiUpdateFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateSightFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateScopeLengthFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiSetHelpAssetFunc)(void* self, void* layoutA, void* layoutB);
+typedef void (__fastcall SetTextForModelNodeTextFunc)(void* uixUtilityImpl, void* modelNodeText, void* textUnit, const char* rawText, bool isLocalized);
+typedef void (__fastcall InitMbStageSpotFunc)(void* self);
+typedef void (__fastcall InitPhaseUiFunc)(void* phase);
+typedef void (__fastcall UpdatePhaseUiFunc)(void* phase);
+typedef void (__fastcall SetNodeVisibilityWrapperFunc)(void* anyMgr, void* node, bool visible);
+typedef bool (__fastcall IsNodeVisibleFunc)(void* anyMgr, void* node);
+typedef void* (__fastcall GetUixLayoutFunc)(void* manager, const void* windowIface, uint64_t stringId);
+// struct UiModel
+// {
+//     void* vtbl; // +0x00
+//     uint8_t _pad0[0x80 - 0x08];
+//     void* root; // +0x80 UiModelNode*
+//     int32_t nodeCount; // +0x90
+//     void** nodeArray; // +0x98 UiModelNode** 
+//     uint32_t animCount; // +0xA0
+//     void** animFiles; // +0xA8
+// };
+typedef void* (__fastcall GetModelWrapperFunc)(void* thisLayout, void* outModel /*UixLayout**/, uint32_t outRoot /*StrCode32*/);
+typedef void* (__fastcall CreateModelNodeFunc)(void* thisModel, void* modelFile, void* file, void* nodeHeader, uint32_t* StrCode32, uint64_t* param_5, uint32_t* param_6);
+typedef void* (__fastcall NewUiModelTextFunc)(uint32_t sceneStrCode32, void* creationCtx, void* opt0, void* opt1);
+typedef void* (__fastcall GetModelNodeCommonFunc)(const void* model, uint64_t stringId);
+typedef void* (__fastcall GetModelNodeFromIndexFunc)(const void* thisModel, int index);
+typedef const void* (__fastcall LoadCreationContextFunc)(const void* serializedBlob, void* outCtx);
+typedef void (__fastcall SetNodeVisibilityFunc)(void* thisNode, bool visible);
+typedef void (__fastcall ReadNodeFunc)(void* thisPtr, void* file /*UiModelFileHeader**/, void* nodeHeader /*UiModelNodeHeader**/, uint32_t* strCode32s, uint32_t* outName);
+typedef void (__fastcall InitModelNodeTextFunc)(void* node /*UiModelText*|UiModelNode**/, void* modelFile /*UiModelFile* (blob base w/ string table)*/, void* fileHeader /*UiModelFileHeader**/, void* nodeHeader /*UiModelNodeHeader**/);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -362,3 +388,19 @@ extern ScopeZoomUiUpdateFunc* ScopeZoomUiUpdate;
 extern ScopeZoomUiUpdateSightFunc* ScopeZoomUiUpdateSight;
 extern ScopeZoomUiUpdateScopeLengthFunc* ScopeZoomUiUpdateScopeLength;
 extern ScopeZoomUiSetHelpAssetFunc* ScopeZoomUiSetHelpAsset;
+extern SetTextForModelNodeTextFunc* SetTextForModelNodeText;
+extern InitMbStageSpotFunc* InitMbStageSpot;
+extern InitPhaseUiFunc* InitPhaseUi;
+extern UpdatePhaseUiFunc* UpdatePhaseUi;
+extern SetNodeVisibilityWrapperFunc* SetNodeVisibilityWrapper;
+extern IsNodeVisibleFunc* IsNodeVisible;
+extern GetUixLayoutFunc* GetUixLayout;
+extern GetModelWrapperFunc* GetModelWrapper;
+extern CreateModelNodeFunc* CreateModelNode;
+extern NewUiModelTextFunc* NewUiModelText;
+extern GetModelNodeCommonFunc* GetModelNodeCommon;
+extern GetModelNodeFromIndexFunc* GetModelNodeFromIndex;
+extern LoadCreationContextFunc* LoadCreationContext;
+extern SetNodeVisibilityFunc* SetNodeVisibility;//TODO: Rename all isolated Node to ModelNode
+extern ReadNodeFunc* ReadNode;
+extern InitModelNodeTextFunc* InitModelNodeText;

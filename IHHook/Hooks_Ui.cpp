@@ -12,178 +12,102 @@ namespace IHHook
 {
     namespace Hooks_Ui
     {
-        // -------- utils
-        static inline uint8_t* get_text_section(HMODULE m, size_t& outSize)
+        // ================== env capture ==================
+        struct TextEnv
         {
-            auto dos = (IMAGE_DOS_HEADER*)m;
-            auto nt = (IMAGE_NT_HEADERS*)((uint8_t*)m + dos->e_lfanew);
-            auto sh = IMAGE_FIRST_SECTION(nt);
-            for (unsigned i = 0; i < nt->FileHeader.NumberOfSections; i++)
-            {
-                char name[9]{};
-                memcpy(name, sh[i].Name, 8);
-                if (strcmp(name, ".text") == 0)
-                {
-                    outSize = sh[i].Misc.VirtualSize ? sh[i].Misc.VirtualSize : sh[i].SizeOfRawData;
-                    return (uint8_t*)m + sh[i].VirtualAddress; // mapped VA
-                }
-            }
-            outSize = 0;
-            return nullptr;
-        }
-
-        static inline void* aob_find(uint8_t* base, size_t size, const char* pat)
-        {
-            std::vector<int> bytes;
-            bytes.reserve(512);
-            for (const char* p = pat; *p;)
-            {
-                while (*p == ' ') ++p;
-                if (!*p) break;
-                if (p[0] == '?' && p[1] == '?')
-                {
-                    bytes.push_back(-1);
-                    p += 2;
-                }
-                else
-                {
-                    unsigned v = 0;
-                    sscanf(p, "%2x", &v);
-                    bytes.push_back((int)v);
-                    p += 2;
-                }
-                while (*p == ' ') ++p;
-            }
-            const size_t n = bytes.size();
-            for (size_t i = 0; i + n <= size; i++)
-            {
-                bool ok = true;
-                for (size_t j = 0; j < n; j++)
-                {
-                    int b = bytes[j];
-                    if (b >= 0 && base[i + j] != (uint8_t)b)
-                    {
-                        ok = false;
-                        break;
-                    }
-                }
-                if (ok) return base + i;
-            }
-            return nullptr;
-        }
-
-        template <class T=void*>
-        static inline T RP(void* p, size_t off) { return *(T*)((uint8_t*)p + off); }
-
-        static inline void** VT(void* obj) { return obj ? *(void***)obj : nullptr; }
-
-        // -------- modes
-        enum OverrideMode : int { MODE_OFF = 0, MODE_ONLY_WHEN_NOT_ADS = 1, MODE_ALWAYS = 2 };
-
-        // -------- state
-        struct ZoomRefs
-        {
-            void* label = nullptr; // B: +0x198, fallback A: +0x178
-            void* main = nullptr; // B: +0x1A0, fallback A: +0x180
-            void* shad = nullptr; // B: +0x1A8, fallback A: +0x188
+            void* modelFile; // from CreateInfo
+            void* fileHeader; // from Read/CreateInfo
+            void* nodeHeader; // from Read/CreateInfo
+            uint32_t* strCodes; // from Read
+            void* creationCtx; // from UiModelText::new
+            uint32_t sceneStr; // from UiModelText::new
         };
 
-        static std::atomic<ZoomRefs> g_refs;
-        static std::atomic<int> g_ads{0};
-        static std::atomic<int> g_mode{MODE_ALWAYS};
-        static char g_label[32] = "Hello";
-        static char g_value[64] = "World";
+        static std::atomic<TextEnv*> gLastEnv{nullptr};
 
-        // ---- engine types
-        using Fn_SubmitText        = void(*)(void* draw, void* node, void* ctx, const char* txt, int a5);
+        // thread-local handoff to correlate new() → Read() → CreateInfo()
+        thread_local void* tlsPendingNewText = nullptr;
+        thread_local TextEnv tlsEnv{};
 
-        // ---- originals
-        static Fn_SubmitText        oSubmitText=nullptr;
-
-        
-        // -------- helpers
-        static inline bool allow_override()
+        // ================== synth creation ==================
+        static void* CreateAndAttachTextNode(const char* text)
         {
-            int m = g_mode.load(std::memory_order_relaxed);
-            if (m == MODE_ALWAYS) return true;
-            if (m == MODE_ONLY_WHEN_NOT_ADS) return g_ads.load(std::memory_order_relaxed) == 0;
-            return false;
+            auto* snap = gLastEnv.load(std::memory_order_acquire);
+            if (!snap)
+            {
+                spdlog::warn("[UiTextAttach] no env captured yet; skip");
+                return nullptr;
+            }
+
+            // 1) construct with same scene/creation family
+            void* node = NewUiModelText(snap->sceneStr, snap->creationCtx, nullptr, nullptr);
+            if (!node)
+            {
+                spdlog::warn("[UiTextAttach] new failed");
+                return nullptr;
+            }
+
+            // 2) mirror engine order: Read -> CreateInfo
+            uint32_t outName = 0;
+            __try
+            {
+                ReadNode(node, snap->fileHeader, snap->nodeHeader, snap->strCodes, &outName);
+                InitModelNodeText(node, snap->modelFile, snap->fileHeader, snap->nodeHeader);
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                spdlog::error("[UiTextAttach] exception during Read/CreateInfo for node {}", fmt::ptr(node));
+                return nullptr;
+            }
+
+            // 3) visible + optional text
+            SetNodeVisibility(node, true);
+            if (text && *text)
+            {
+                // uixUtilityImpl / textUnit are optional for simple textbox updates
+                SetTextForModelNodeText(nullptr, node, nullptr, text, false);
+            }
+
+            spdlog::info("[UiTextAttach] attached UiModelText {}", fmt::ptr(node));
+            return node;
         }
 
-        // Hooks 
+        // ================== sample trigger ==================
+        // call once from your existing UpdatePhaseUiHook after UpdatePhaseUi()
+        static void UiText_Tick()
+        {
+            // press F7 to spawn a test box once you’ve seen at least one legit UiModelText
+            static bool armed = true;
+            if (armed && (GetAsyncKeyState(VK_F8) & 1))
+            {
+                spdlog::info("[UiTextAttach] Bombs away !!!");
+                armed = false;
+                CreateAndAttachTextNode("Hello World");
+            }
+        }
+
+
+        // --------------------------------------------------------------------------------------------------------------Hooks 
         void __fastcall ScopeZoomUiUpdateHook(void* self)
+        {
+            // spdlog::debug(__func__);
+
+            ScopeZoomUiUpdate(self);
+        } //ScopeZoomUiUpdateHook
+
+        void __fastcall ScopeZoomUiUpdateSightHook(void* self)
         {
             spdlog::debug(__func__);
 
-            ScopeZoomUiUpdate(self);
+            // call game code
+            ScopeZoomUiUpdateSight(self);
+        } //ScopeZoomUiUpdateSightHook
 
-            void* st = RP(self, 0x50);
-            if (st)
-            {
-                uint8_t flags = *(uint8_t*)((uint8_t*)st + 0x328);
-                g_ads.store((flags & 1) ? 1 : 0, std::memory_order_relaxed);
-            }
-        } //ScopeZoomUiUpdateHook
-
-        // void __fastcall ScopeZoomUiUpdateSightHook(void* self)
-        // {
-        //     spdlog::debug(__func__);
-        //
-        //     ScopeZoomUiUpdateSight(self);
-        //
-        //
-        // } //ScopeZoomUiUpdateSightHook
 
         void __fastcall ScopeZoomUiUpdateScopeLengthHook(void* self)
         {
             spdlog::debug(__func__);
 
-            // steal SubmitText on first pass only, from the live draw instance
-            if (!oSubmitText)
-            {
-                void* mgr48 = RP(self, 0x48);
-                void* draw = mgr48 ? RP<void*>(mgr48, 0x20) : nullptr;
-                if (draw)
-                {
-                    void** v = VT(draw);
-                    if (v)
-                    {
-                        auto p = (Fn_SubmitText)v[0x708 / 8];
-                        if (p)
-                        {
-                            MH_CreateHook(
-                                (LPVOID)p, (LPVOID)+[](void* draw, void* node, void* ctx, const char* txt, int a5)
-                                {
-                                    spdlog::debug("");
-                                    ZoomRefs z = g_refs.load(std::memory_order_acquire);
-                                    spdlog::info("SubmitText Hook: text=\"{}\"", txt);
-                                    if (allow_override())
-                                    {
-                                        if (node == z.label || node == z.main || node == z.shad) spdlog::debug("Should override!");
-                                        if (node == z.label) txt = g_label;
-                                        else if (node == z.main || node == z.shad) txt = g_value;
-
-                                        if (std::string (txt) == "ZOOM")
-                                        {
-                                            spdlog::info("SubmitText Hook: z.label=\"{}\"", txt);
-                                            txt = g_label;
-                                        } else if (std::string(txt) == "X4.0")
-                                        {
-                                            spdlog::debug("Should override!");
-                                            txt = g_value;
-                                        }
-                                    } else
-                                    {
-                                        spdlog::debug("Not allowed to override");
-                                    }
-                                    oSubmitText(draw, node, ctx, txt, a5);
-                                }, (LPVOID*)&oSubmitText);
-                            MH_EnableHook((LPVOID)p);
-                        }
-                    }
-                }
-            }
-            
             ScopeZoomUiUpdateScopeLength(self);
         } //ScopeZoomUiUpdateScopeLength
 
@@ -192,32 +116,215 @@ namespace IHHook
             spdlog::debug(__func__);
 
             ScopeZoomUiSetHelpAsset(self, layoutA, layoutB);
-
-            ZoomRefs z{};
-            // prefer B-layout nodes
-            z.label = RP(self, 0x198);
-            z.main = RP(self, 0x1A0);
-            z.shad = RP(self, 0x1A8);
-            if (!z.main)
-            {
-                z.label = RP(self, 0x178);
-                z.main = RP(self, 0x180);
-                z.shad = RP(self, 0x188);
-            }
-            g_refs.store(z, std::memory_order_release);
         } //ScopeZoomUiSetHelpAssetHook
+
+        void __fastcall SetTextForModelNodeTextHook(void* uixUtilityImpl, void* modelNodeText, void* textUnit,
+                                                    const char* rawText, bool isLocalized)
+        {
+            // spdlog::debug(
+            //     "SetTextForModelNodeTextHook uixUtilityImpl={} modelNodeText={} textUnit={} rawText={} isLocalized={}",
+            //     uixUtilityImpl, modelNodeText, textUnit, (rawText ? rawText : "(null)"), isLocalized);
+
+            SetTextForModelNodeText(uixUtilityImpl, modelNodeText, textUnit, rawText, isLocalized);
+        } //SetTextForModelNodeTextHook
+
+        void __fastcall InitMbStageSpotHook(void* self)
+        {
+            spdlog::debug(__func__);
+
+            InitMbStageSpot(self);
+        } //InitMbStageSpotHook
+
+        void __fastcall InitPhaseUiHook(void* phase) // STALLS
+        {
+            spdlog::debug(__func__);
+
+            InitPhaseUi(phase);
+        } //InitPhaseUiHook
+
+        void __fastcall UpdatePhaseUiHook(void* phase)
+        // This is a Tick function, probably propagated from a global Game::Update
+        {
+            // spdlog::debug(__func__);
+
+            UpdatePhaseUi(phase);
+
+            UiText_Tick();
+
+            // if (GetAsyncKeyState(VK_F8) & 1)
+            // {
+            // }
+        } //UpdatePhaseUiHook
+
+        void __fastcall SetNodeVisibilityWrapperHook(void* anyMgr, void* thisNode, bool visible)
+        {
+            // spdlog::debug(__func__);
+
+            SetNodeVisibilityWrapper(anyMgr, thisNode, visible);
+        } //SetNodeVisibilityWrapperHook
+
+        void __fastcall SetNodeVisibilityHook(void* thisNode, bool visible)
+        {
+            // spdlog::debug(__func__);
+
+            SetNodeVisibility(thisNode, visible);
+        } //SetNodeVisibilityHook
+
+        bool __fastcall IsNodeVisibleHook(void* anyMgr, void* node)
+        {
+            // spdlog::debug(__func__);
+
+            return IsNodeVisible(anyMgr, node);
+        } //IsNodeVisibleHook
+
+        void* __fastcall GetUixLayoutHook(void* uix, const void* windowIface, uint64_t stringId)
+        {
+            spdlog::debug("GetUixLayoutHook(uix = {}, windowIface = {}, stringId = {})", uix, windowIface, stringId);
+
+            void* layout = GetUixLayout(uix, windowIface, stringId);
+
+            return layout;
+        } //GetUixLayoutHook
+
+        void* /*UixLayout**/ __fastcall GetModelWrapperHook(void* thisLayout, void* outModel /*UixLayout**/,
+                                                            uint32_t stringId /*StrCode32*/)
+        {
+            spdlog::debug(__func__);
+
+            return GetModelWrapper(thisLayout, outModel, stringId);
+        } //GetModelWrapperHook
+
+        void* /*ModelNode*/ __fastcall CreateModelNodeHook(void* thisModel, void* modelFile, void* fileHeader,
+                                                           void* nodeHeader,
+                                                           uint32_t* strCode32s, uint64_t* param_5, uint32_t* param_6)
+        {
+            spdlog::debug(__func__);
+
+            auto modelNode = CreateModelNode(thisModel, modelFile, fileHeader, nodeHeader, strCode32s, param_5,
+                                             param_6);
+            return modelNode;
+        } //CreateModelNodeHook
+
+        void* /*ModelNode*/ __fastcall NewUiModelTextHook(uint32_t sceneStr, void* creationCtx, void* opt0,
+                                                          void* opt1)
+        {
+            spdlog::debug(__func__);
+
+            // return NewUiModelText(sceneStr, creationCtx, opt0, opt1);
+            void* node = NewUiModelText(sceneStr, creationCtx, opt0, opt1);
+            tlsPendingNewText = node;
+            tlsEnv.sceneStr = sceneStr;
+            tlsEnv.creationCtx = creationCtx;
+            spdlog::debug("[UiTextAttach] new UiModelText node={}", fmt::ptr(node));
+            return node;
+        } //NewUiModelTextHook
+
+        void* __fastcall GetModelNodeCommonHook(const void* model, uint64_t stringId)
+        {
+            spdlog::debug(__func__);
+
+            return GetModelNodeCommon(model, stringId);
+        } //GetModelNodeCommonHook
+
+        void* __fastcall GetModelNodeFromIndexHook(const void* thisModel, int index)
+        {
+            // spdlog::debug(__func__);
+
+            return GetModelNodeFromIndex(thisModel, index);
+        } //GetModelNodeFromIndexHook
+
+        const void* __fastcall LoadCreationContextHook(const void* serializedBlob, void* outCtx)
+        {
+            spdlog::debug(__func__);
+
+            return LoadCreationContext(serializedBlob, outCtx);
+        } //LoadCreationContextHook
+
+        void __fastcall ReadNodeHook(void* node, void* fileHeader /*UiModelFileHeader**/,
+                                     void* nodeHeader /*UiModelNodeHeader**/, uint32_t* strCode32s, uint32_t* outName)
+        {
+            spdlog::debug(__func__);
+
+            // ReadNode(thisPtr, file, nodeHeader, strCode32s, outName);
+            ReadNode(node, fileHeader, nodeHeader, strCode32s, outName);
+
+            if (node == tlsPendingNewText)
+            {
+                tlsEnv.fileHeader = fileHeader;
+                tlsEnv.nodeHeader = nodeHeader;
+                tlsEnv.strCodes = strCode32s;
+                spdlog::debug("[UiTextAttach] capture Read env node={} fileHeader={} nodeHeader={} strTbl={}",
+                              fmt::ptr(node), fmt::ptr(fileHeader), fmt::ptr(nodeHeader), fmt::ptr(strCode32s));
+            }
+        } //LoadCreationContextHook
+
+        void __fastcall InitModelNodeTextHook(void* node, void* modelFile, void* fileHeader, void* nodeHeader)
+        {
+            spdlog::debug(__func__);
+
+            InitModelNodeText(node, modelFile, fileHeader, nodeHeader);
+
+            if (node == tlsPendingNewText)
+            {
+                tlsEnv.modelFile = modelFile;
+
+                // publish coherent snapshot
+                auto* prev = gLastEnv.load(std::memory_order_acquire);
+                auto* snap = new TextEnv(tlsEnv);
+                gLastEnv.store(snap, std::memory_order_release);
+                if (prev) delete prev;
+
+                spdlog::info("[UiTextAttach] env ready node={} modelFile={} fileHeader={} nodeHeader={}",
+                             fmt::ptr(node), fmt::ptr(modelFile), fmt::ptr(fileHeader), fmt::ptr(nodeHeader));
+
+                tlsPendingNewText = nullptr;
+                tlsEnv = {};
+            }
+        } //LoadCreationContextHook
 
         void CreateHooks()
         {
-            CREATE_HOOK(ScopeZoomUiUpdate)
+            CREATE_HOOK(SetTextForModelNodeText)
+            CREATE_HOOK(IsNodeVisible)
+            CREATE_HOOK(UpdatePhaseUi)
+            CREATE_HOOK(SetNodeVisibilityWrapper)
+            CREATE_HOOK(SetNodeVisibility)
+            CREATE_HOOK(GetUixLayout)
+            CREATE_HOOK(GetModelWrapper)
+            CREATE_HOOK(CreateModelNode)
+            CREATE_HOOK(NewUiModelText)
+            CREATE_HOOK(GetModelNodeCommon)
+            CREATE_HOOK(GetModelNodeFromIndex)
+            CREATE_HOOK(LoadCreationContext)
+            CREATE_HOOK(ReadNode)
+            CREATE_HOOK(InitModelNodeText)
+            // CREATE_HOOK(ScopeZoomUiUpdate)
             // CREATE_HOOK(ScopeZoomUiUpdateSight)
-            CREATE_HOOK(ScopeZoomUiUpdateScopeLength)
-            CREATE_HOOK(ScopeZoomUiSetHelpAsset)
+            // CREATE_HOOK(ScopeZoomUiUpdateScopeLength)
+            // CREATE_HOOK(ScopeZoomUiSetHelpAsset)
+            // CREATE_HOOK(InitPhaseUi)
+            // CREATE_HOOK(InitMbStageSpot)
 
-            ENABLEHOOK(ScopeZoomUiUpdate)
+            ENABLEHOOK(SetTextForModelNodeText)
+            ENABLEHOOK(IsNodeVisible)
+            ENABLEHOOK(UpdatePhaseUi)
+            ENABLEHOOK(SetNodeVisibilityWrapper)
+            ENABLEHOOK(SetNodeVisibility)
+            ENABLEHOOK(GetUixLayout)
+            ENABLEHOOK(GetModelWrapper)
+            ENABLEHOOK(CreateModelNode)
+            ENABLEHOOK(NewUiModelText)
+            ENABLEHOOK(GetModelNodeCommon)
+            ENABLEHOOK(GetModelNodeFromIndex)
+            ENABLEHOOK(LoadCreationContext)
+            ENABLEHOOK(ReadNode)
+            ENABLEHOOK(InitModelNodeText)
+            // ENABLEHOOK(ScopeZoomUiUpdate)
             // ENABLEHOOK(ScopeZoomUiUpdateSight)
-            ENABLEHOOK(ScopeZoomUiUpdateScopeLength)
-            ENABLEHOOK(ScopeZoomUiSetHelpAsset)
+            // ENABLEHOOK(ScopeZoomUiUpdateScopeLength)
+            // ENABLEHOOK(ScopeZoomUiSetHelpAsset)
+            // ENABLEHOOK(InitPhaseUi)
+            // ENABLEHOOK(InitMbStageSpot)
         } //CreateHooks
 
 
