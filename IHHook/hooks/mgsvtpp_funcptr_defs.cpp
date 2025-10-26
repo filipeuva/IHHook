@@ -219,3 +219,7 @@ SetModelNodeTextVerticalAlignFunc* SetModelNodeTextVerticalAlign;
 GetModelNodeCommonFunc* GetModelNodeCommon;
 GetModelNodeCommonInternalFunc* GetModelNodeCommonInternal;
 IsHaveModelNodeCommonFunc* IsHaveModelNodeCommon;
+UpdateWindowGraphFunc* UpdateWindowGraph;
+AddChildWindowFunc* AddChildWindow;
+CreateNewWindowFunc* CreateNewWindow;
+GetWindowManagerFunc* GetWindowManager;

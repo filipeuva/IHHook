@@ -234,6 +234,11 @@ typedef void (__fastcall SetupModelFunc)(void* selfModel);
 typedef void* (__fastcall GetCommonNodeFunc)(void* selfModel);
 typedef bool (__fastcall IsHaveModelNodeCommonFunc)(void* selfUixUtility, const void* model, uint64_t stringId);
 
+typedef void (__fastcall UpdateWindowGraphFunc)(void* selfWindow);
+typedef void (__fastcall AddChildWindowFunc)(void* selfWindow, void* childWindow);
+typedef void* (__fastcall CreateNewWindowFunc)(void* windowFunction /*WindowFunction* or service*/, const void* nameStr, uint32_t flagsA, uint32_t flagsB);
+typedef void* (__fastcall GetWindowManagerFunc)();
+
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
 extern PathCode64Func* PathCode64;
@@ -446,3 +451,7 @@ extern SetModelNodeTextVerticalAlignFunc* SetModelNodeTextVerticalAlign;
 extern GetModelNodeCommonFunc* GetModelNodeCommon;
 extern GetModelNodeCommonInternalFunc* GetModelNodeCommonInternal;
 extern IsHaveModelNodeCommonFunc* IsHaveModelNodeCommon;
+extern UpdateWindowGraphFunc* UpdateWindowGraph;
+extern AddChildWindowFunc* AddChildWindow;
+extern CreateNewWindowFunc* CreateNewWindow;
+extern GetWindowManagerFunc* GetWindowManager;

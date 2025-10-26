@@ -219,5 +219,9 @@ namespace IHHook {
 		GetModelNodeCommon = (GetModelNodeCommonFunc*)addressSet["GetModelNodeCommon"];
 		GetModelNodeCommonInternal = (GetModelNodeCommonInternalFunc*)addressSet["GetModelNodeCommonInternal"];
 		IsHaveModelNodeCommon = (IsHaveModelNodeCommonFunc*)addressSet["IsHaveModelNodeCommon"];
+		UpdateWindowGraph = (UpdateWindowGraphFunc*)addressSet["UpdateWindowGraph"];
+		AddChildWindow = (AddChildWindowFunc*)addressSet["AddChildWindow"];
+		CreateNewWindow = (CreateNewWindowFunc*)addressSet["CreateNewWindow"];
+		GetWindowManager = (GetWindowManagerFunc*)addressSet["GetWindowManager"];
 	}//SetFuncPtrs
 }//namespace IHHook

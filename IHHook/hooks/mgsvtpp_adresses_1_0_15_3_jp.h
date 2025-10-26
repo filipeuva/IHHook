@@ -218,5 +218,9 @@ namespace IHHook {
 		{"GetModelNodeCommon",0x14d7736f0},
 		{"GetModelNodeCommonInternal",0x14d7734a0},
 		{"IsHaveModelNodeCommon",0x144afbbd0},
+		{"UpdateWindowGraph",0x14d8536c0},
+		{"AddChildWindow",0x141dca510},
+		{"CreateNewWindow",0x141dab8b0},
+		{"GetWindowManager",0x14d94c1a0},
 	};//map mgsvtpp_adresses_1_0_15_3_jp
 }//namespace IHHook
