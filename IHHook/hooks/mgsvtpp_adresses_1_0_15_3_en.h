@@ -191,11 +191,32 @@ namespace IHHook {
 		{"GetModelWrapper", 0x144af0b40},//FOX TODO: Add this to Fox Hooks 
 		{"CreateModelNode", 0x141dc0da0},//FOX TODO: Add this to Fox Hooks
 		{"NewUiModelText", 0x14d73ef40},//FOX TODO: Add this to Fox Hooks
-		{"GetModelNodeCommon", 0x14d7736f0},//FOX TODO: Add this to Fox Hooks
 		{"GetModelNodeFromIndex", 0x14d773850},//FOX TODO: Add this to Fox Hooks
 		{"LoadCreationContext", 0x14d743bd0},//FOX TODO: Add this to Fox Hooks
 		{"SetNodeVisibility", 0x14d77a150},//FOX TODO: Add this to Fox Hooks
 		{"ReadNode", 0x141dbcec0},
-		{"InitModelNodeText",0x141db29b0}
+		{"InitModelNodeText",0x141db29b0},
+		{"GetLayoutModel",0x14d7241b0},
+		{"SetupModel",0x141dc2930},
+		{"GetCommonNode",0x14d7736f0},
+		{"SetTextUnitsForModelNodeText",0x144b276e0},
+		{"SetTextUnits",0x14d746ed0},
+		{"ConnectLayoutComponent",0x14d71be00},
+		{"SetLayoutParentComponent",0x14d966500},
+		{"RemoveLayoutChildComponent",0x14d965ff0},
+		{"OnLayoutComponentDestroy",0x14d965320},
+		{"ConnectChildWindowToRoot",0x14d847540},
+		{"NodeConnectShim",0x14d848be0},
+		{"GetGlobalUixUtility",0x144AF86E0},
+		{"SetModelNodeTextColorRGB",0x144B07F30},
+		{"SetModelNodeTextDrawPriority",0x144B07F30},
+		{"SetModelNodePriority",0x144B082F0},
+		{"SetModelNodeTextFontSize",0x144B08890},
+		{"SetModelNodeTextStatus",0x144B26700},
+		{"SetModelNodeTextTextAlign",0x144B26B00},
+		{"SetModelNodeTextVerticalAlign",0x144B2C930},
+		{"GetModelNodeCommon",0x14d7736f0},
+		{"GetModelNodeCommonInternal",0x14d7734a0},
+		{"IsHaveModelNodeCommon",0x144afbbd0},
 	};//map mgsvtpp_adresses_1_0_15_3_en
 }//namespace IHHook

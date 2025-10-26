@@ -192,11 +192,32 @@ namespace IHHook {
 		GetModelWrapper = (GetModelWrapperFunc*)addressSet["GetModelWrapper"];
 		CreateModelNode = (CreateModelNodeFunc*)addressSet["CreateModelNode"];
 		NewUiModelText = (NewUiModelTextFunc*)addressSet["NewUiModelText"];
-		GetModelNodeCommon = (GetModelNodeCommonFunc*)addressSet["GetModelNodeCommon"];
 		GetModelNodeFromIndex = (GetModelNodeFromIndexFunc*)addressSet["GetModelNodeFromIndex"];
 		LoadCreationContext = (LoadCreationContextFunc*)addressSet["LoadCreationContext"];
 		SetNodeVisibility = (SetNodeVisibilityFunc*)addressSet["SetNodeVisibility"];
 		ReadNode = (ReadNodeFunc*)addressSet["ReadNode"];
 		InitModelNodeText = (InitModelNodeTextFunc*)addressSet["InitModelNodeText"];
+		GetLayoutModel = (GetLayoutModelFunc*)addressSet["GetLayoutModel"];
+		SetupModel = (SetupModelFunc*)addressSet["SetupModel"];
+		GetCommonNode = (GetCommonNodeFunc*)addressSet["GetCommonNode"];
+		SetTextUnitsForModelNodeText = (SetTextUnitsForModelNodeTextFunc*)addressSet["SetTextUnitsForModelNodeText"];
+		SetTextUnits = (SetTextUnitsFunc*)addressSet["SetTextUnits"];
+		ConnectLayoutComponent = (ConnectLayoutComponentFunc*)addressSet["ConnectLayoutComponent"];
+		SetLayoutParentComponent = (SetLayoutParentComponentFunc*)addressSet["SetLayoutParentComponent"];
+		RemoveLayoutChildComponent = (RemoveLayoutChildComponentFunc*)addressSet["RemoveLayoutChildComponent"];
+		OnLayoutComponentDestroy = (OnLayoutComponentDestroyFunc*)addressSet["OnLayoutComponentDestroy"];
+		ConnectChildWindowToRoot = (ConnectChildWindowToRootFunc*)addressSet["ConnectChildWindowToRoot"];
+		NodeConnectShim = (NodeConnectShimFunc*)addressSet["NodeConnectShim"];
+		GetGlobalUixUtility = (GetGlobalUixUtilityFunc*)addressSet["GetGlobalUixUtility"];
+		SetModelNodeTextColorRGB = (SetModelNodeTextColorRGBFunc*)addressSet["SetModelNodeTextColorRGB"];
+		SetModelNodeTextDrawPriority = (SetModelNodeTextDrawPriorityFunc*)addressSet["SetModelNodeTextDrawPriority"];
+		SetModelNodePriority = (SetModelNodePriorityFunc*)addressSet["SetModelNodePriority"];
+		SetModelNodeTextFontSize = (SetModelNodeTextFontSizeFunc*)addressSet["SetModelNodeTextFontSize"];
+		SetModelNodeTextStatus = (SetModelNodeTextStatusFunc*)addressSet["SetModelNodeTextStatus"];
+		SetModelNodeTextTextAlign = (SetModelNodeTextTextAlignFunc*)addressSet["SetModelNodeTextTextAlign"];
+		SetModelNodeTextVerticalAlign = (SetModelNodeTextVerticalAlignFunc*)addressSet["SetModelNodeTextVerticalAlign"];
+		GetModelNodeCommon = (GetModelNodeCommonFunc*)addressSet["GetModelNodeCommon"];
+		GetModelNodeCommonInternal = (GetModelNodeCommonInternalFunc*)addressSet["GetModelNodeCommonInternal"];
+		IsHaveModelNodeCommon = (IsHaveModelNodeCommonFunc*)addressSet["IsHaveModelNodeCommon"];
 	}//SetFuncPtrs
 }//namespace IHHook

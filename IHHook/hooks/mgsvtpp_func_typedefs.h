@@ -187,12 +187,30 @@ typedef void (__fastcall ScopeZoomUiUpdateSightFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateScopeLengthFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiSetHelpAssetFunc)(void* self, void* layoutA, void* layoutB);
 typedef void (__fastcall SetTextForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText, void* textUnit, const char* rawText, bool isLocalized);
+typedef void (__fastcall SetTextUnitsForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText, void* textUnit, uint32_t unitId);
+typedef bool (__fastcall SetTextUnitsFunc)(void* modelNodeText, void* textUnit, uint32_t unitId);
+typedef void (__fastcall ConnectLayoutComponentFunc)(void* child , void* parent, const void* portNode);
+typedef void (__fastcall SetLayoutParentComponentFunc)(void* child /*RCX*/, void* parent /*RDX*/);
+typedef int (__fastcall RemoveLayoutChildComponentFunc)(void* parent /*RCX*/, void* child /*RDX*/);
+typedef void (__fastcall OnLayoutComponentDestroyFunc)(void* self);
+typedef void (__fastcall ConnectChildWindowToRootFunc)(void* window /*RCX*/, void* childWindow /*RDX*/);
+typedef void* (__fastcall NodeConnectShimFunc)(void* node /*RCX*/, void* parentComp /*RDX*/, void* portNode   /*R8*/);
 typedef void (__fastcall InitMbStageSpotFunc)(void* self);
 typedef void (__fastcall InitPhaseUiFunc)(void* phase);
 typedef void (__fastcall UpdatePhaseUiFunc)(void* phase);
 typedef void (__fastcall SetNodeVisibilityWrapperFunc)(void* selfModel, void* node, bool visible);
 typedef bool (__fastcall IsNodeVisibleFunc)(void* anyMgr, void* node);
 typedef void* (__fastcall GetUixLayoutFunc)(void* manager, const void* windowIface, uint64_t stringId);
+typedef void** (__fastcall GetGlobalUixUtilityFunc)();
+typedef void (__fastcall SetModelNodeTextColorRGBFunc)(void* uix, void* modelNode, float r, float g, float b);
+typedef void (__fastcall SetModelNodeTextDrawPriorityFunc)(void* uix, void* layout, uint8_t prio);
+typedef void (__fastcall SetModelNodePriorityFunc)(void* uix, void* modelNodeCommon, uint8_t prio);
+typedef void (__fastcall SetModelNodeTextFontSizeFunc)(void* uix, void* modelNodeText, float a, float b);
+typedef void (__fastcall SetModelNodeTextStatusFunc)(void* uix, void* text,  uint16_t flags);
+typedef void (__fastcall SetModelNodeTextTextAlignFunc)(void* uix, void* modelNodeText, uint8_t align);
+typedef void (__fastcall SetModelNodeTextVerticalAlignFunc)(void* uix, void* modelNodeText, uint8_t valign);
+typedef void* (__fastcall GetModelNodeCommonFunc)(void* selfModel);
+typedef void* (__fastcall GetModelNodeCommonInternalFunc)(void* selfModel, uint32_t stringId);
 // struct UiModel
 // {
 //     void* vtbl; // +0x00
@@ -206,12 +224,15 @@ typedef void* (__fastcall GetUixLayoutFunc)(void* manager, const void* windowIfa
 typedef void* (__fastcall GetModelWrapperFunc)(void* thisLayout, void* outModel /*UixLayout**/, uint32_t outRoot /*StrCode32*/);
 typedef void* (__fastcall CreateModelNodeFunc)(void* thisModel, void* modelFile, void* file, void* nodeHeader, uint32_t* StrCode32, uint64_t* param_5, uint32_t* param_6);
 typedef void* (__fastcall NewUiModelTextFunc)(uint32_t sceneStrCode32, void* creationCtx, void* opt0, void* opt1);
-typedef void* (__fastcall GetModelNodeCommonFunc)(const void* model, uint64_t stringId);
 typedef void* (__fastcall GetModelNodeFromIndexFunc)(const void* thisModel, int index);
 typedef const void* (__fastcall LoadCreationContextFunc)(const void* serializedBlob, void* outCtx);
 typedef void (__fastcall SetNodeVisibilityFunc)(void* node, bool visible);
 typedef void (__fastcall ReadNodeFunc)(void* thisPtr, void* file /*UiModelFileHeader**/, void* nodeHeader /*UiModelNodeHeader**/, uint32_t* strCode32s, uint32_t* outName);
 typedef void (__fastcall InitModelNodeTextFunc)(void* node /*UiModelText*|UiModelNode**/, void* modelFile /*UiModelFile* (blob base w/ string table)*/, void* fileHeader /*UiModelFileHeader**/, void* nodeHeader /*UiModelNodeHeader**/);
+typedef void* (__fastcall GetLayoutModelFunc)(void* thisLayout, uint32_t modelIndex);
+typedef void (__fastcall SetupModelFunc)(void* selfModel);
+typedef void* (__fastcall GetCommonNodeFunc)(void* selfModel);
+typedef bool (__fastcall IsHaveModelNodeCommonFunc)(void* selfUixUtility, const void* model, uint64_t stringId);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -398,9 +419,30 @@ extern GetUixLayoutFunc* GetUixLayout;
 extern GetModelWrapperFunc* GetModelWrapper;
 extern CreateModelNodeFunc* CreateModelNode;
 extern NewUiModelTextFunc* NewUiModelText;
-extern GetModelNodeCommonFunc* GetModelNodeCommon;
 extern GetModelNodeFromIndexFunc* GetModelNodeFromIndex;
 extern LoadCreationContextFunc* LoadCreationContext;
-extern SetNodeVisibilityFunc* SetNodeVisibility;//TODO: Rename all isolated Node to ModelNode
+extern SetNodeVisibilityFunc* SetNodeVisibility; //TODO: Rename all isolated Node to ModelNode
 extern ReadNodeFunc* ReadNode;
 extern InitModelNodeTextFunc* InitModelNodeText;
+extern GetLayoutModelFunc* GetLayoutModel;
+extern SetupModelFunc* SetupModel;
+extern GetCommonNodeFunc* GetCommonNode;
+extern SetTextUnitsForModelNodeTextFunc* SetTextUnitsForModelNodeText;
+extern SetTextUnitsFunc* SetTextUnits;
+extern ConnectLayoutComponentFunc* ConnectLayoutComponent;
+extern SetLayoutParentComponentFunc* SetLayoutParentComponent;
+extern RemoveLayoutChildComponentFunc* RemoveLayoutChildComponent;
+extern OnLayoutComponentDestroyFunc* OnLayoutComponentDestroy;
+extern ConnectChildWindowToRootFunc* ConnectChildWindowToRoot;
+extern NodeConnectShimFunc* NodeConnectShim;
+extern GetGlobalUixUtilityFunc* GetGlobalUixUtility;
+extern SetModelNodeTextColorRGBFunc* SetModelNodeTextColorRGB;
+extern SetModelNodeTextDrawPriorityFunc* SetModelNodeTextDrawPriority;
+extern SetModelNodePriorityFunc* SetModelNodePriority;
+extern SetModelNodeTextFontSizeFunc* SetModelNodeTextFontSize;
+extern SetModelNodeTextStatusFunc* SetModelNodeTextStatus;
+extern SetModelNodeTextTextAlignFunc* SetModelNodeTextTextAlign;
+extern SetModelNodeTextVerticalAlignFunc* SetModelNodeTextVerticalAlign;
+extern GetModelNodeCommonFunc* GetModelNodeCommon;
+extern GetModelNodeCommonInternalFunc* GetModelNodeCommonInternal;
+extern IsHaveModelNodeCommonFunc* IsHaveModelNodeCommon;

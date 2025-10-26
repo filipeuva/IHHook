@@ -8,8 +8,6 @@ namespace IHHook {
         void CreateHooks();
         int CreateLibs(lua_State* L);
 
-        //Test
-        
-        
+        int l_PrintViewTree(lua_State* L);
     }//namespace Hooks_FOV
 }//namespace IHHook
