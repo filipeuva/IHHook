@@ -223,3 +223,12 @@ UpdateWindowGraphFunc* UpdateWindowGraph;
 AddChildWindowFunc* AddChildWindow;
 CreateNewWindowFunc* CreateNewWindow;
 GetWindowManagerFunc* GetWindowManager;
+GetWindowLayoutFunc* GetWindowLayout;
+
+FindWindowFactoryFunc* FindWindowFactory;
+RegisterWindowFactoryFunc* RegisterWindowFactory;
+GetWindowHandleFunc* GetWindowHandle;
+SetLayoutInfoFunc* SetLayoutInfo;
+GetTextUnitsFunc* GetTextUnits;
+SetTextUnitFunc* SetTextUnit;
+GraphUpdateFunc* GraphUpdate;

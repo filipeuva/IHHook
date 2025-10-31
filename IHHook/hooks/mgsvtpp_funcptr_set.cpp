@@ -223,5 +223,13 @@ namespace IHHook {
 		AddChildWindow = (AddChildWindowFunc*)addressSet["AddChildWindow"];
 		CreateNewWindow = (CreateNewWindowFunc*)addressSet["CreateNewWindow"];
 		GetWindowManager = (GetWindowManagerFunc*)addressSet["GetWindowManager"];
+		GetWindowLayout = (GetWindowLayoutFunc*)addressSet["GetWindowLayout"];
+		FindWindowFactory = (FindWindowFactoryFunc*)addressSet["FindWindowFactory"];
+		RegisterWindowFactory = (RegisterWindowFactoryFunc*)addressSet["RegisterWindowFactory"];
+		GetWindowHandle = (GetWindowHandleFunc*)addressSet["GetWindowHandle"];
+		SetLayoutInfo = (SetLayoutInfoFunc*)addressSet["SetLayoutInfo"];
+		GetTextUnits = (GetTextUnitsFunc*)addressSet["GetTextUnits"];
+		SetTextUnit = (SetTextUnitFunc*)addressSet["SetTextUnit"];
+		GraphUpdate = (GraphUpdateFunc*)addressSet["GraphUpdate"];
 	}//SetFuncPtrs
 }//namespace IHHook

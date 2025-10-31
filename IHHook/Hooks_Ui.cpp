@@ -1,17 +1,21 @@
-﻿// Hooks_Ui.cpp — ROOT injector using fox::ui::Model::GetModelNodeCommon (F7/F8/F10)
+﻿// Hooks_Ui.cpp — Add-our-own Window + inject UiModelText (F7)  |  Dump (F8)  |  Inspect (F9/F10)
 //
 // Hotkeys:
-//   F7  -> Inject "Camo: N" into every layout that has an anchor
-//   F8  -> Dump injection status (layout/parent/port/node/visible/text)
-//   F10 -> Resolve anchors for all known layouts (calls IsHaveModelNodeCommon + GetModelNodeCommonInternal)
+//   F7  -> Create our own Window (via last seen WindowFunction*), add it under a known parent window,
+//          create a UiModelText using a harvested creation context, and connect it to our window’s graph.
+//   F8  -> Dump injection status (window/layout/parent/port/node/visible/text)
+//   F9  -> Dump common[] ports for known layouts (debug)
+//   F10 -> Resolve anchors for layouts (legacy layout route; kept for convenience)
 //
 // Notes:
-//  • Parent component = layout pointer; Port node = model->GetModelNodeCommonInternal(model, ROOT_SID) if present,
-//    else model->GetModelNodeCommon() as fallback.
-//  • We only probe when UI is live (hotkey path / UpdatePhaseUi).
-//  • Once-per-layout injection; discovery is SEH-guarded.
+//  • We harvest a *valid* ModelNodeText creation context at runtime by hooking NewUiModelText.
+//  • For windows, NodeConnectShim follows the same shape as in Window::AddChild:
+//      parentComp = *(window + 0x28), port = parentComp ? parentComp + 0x60 : nullptr.
+//  • We learn candidate parent windows by hooking Window::AddChild and caching the parent pointer.
+//  • We capture a usable WindowFunction* (CreateWindow’s RCX) to instantiate our own window later.
+//  • Text auto-refreshes when g_camoIndex changes.
 //
-// Requires in mgsvtpp_func_typedefs.h (or equivalent):
+// Requires in mgsvtpp_func_typedefs.h:
 //   void*  __fastcall GetModelWrapper(void* layout, void* outModel, uint32_t outRoot);
 //   void*  __fastcall GetModelNodeFromIndex(const void* model, int index);
 //   void*  __fastcall NewUiModelText(uint32_t, void*, void*, void*);
@@ -20,11 +24,20 @@
 //   void   __fastcall SetModelNodeTextFontSize(void* uix, void* node, float size, float tracking);
 //   void   __fastcall SetModelNodeTextColorRGB(void* uix, void* node, float r, float g, float b);
 //   bool   __fastcall IsNodeVisible(void* anyMgr, void* node);
-//   void*  __fastcall GetModelNodeCommon(void* selfModel);                     // 1-arg vfunc
-//   void*  __fastcall GetModelNodeCommonInternal(void* selfModel, uint32_t);   // SID variant
+//   void*  __fastcall GetModelNodeCommon(void* selfModel);
+//   void*  __fastcall GetModelNodeCommonInternal(void* selfModel, uint32_t);
 //   bool   __fastcall IsHaveModelNodeCommon(void* uixUtil, const void* model, uint64_t sid);
 //   void   __fastcall NodeConnectShim(void* node, void* parentComp, void* portNode);
 //   void** GetGlobalUixUtility();
+//
+//   // Window route
+//   void  __fastcall UpdateWindowGraph(void* pWindow);
+//   void  __fastcall AddChildWindow(void* parentWindow, void* childWindow);
+//   void* __fastcall CreateNewWindow(void* windowFunction /*RCX*/, const void* nameStr /*RDX*/, uint32_t flagsA /*R8D*/, uint32_t flagsB /*R9D*/);
+//   void* __fastcall GetWindowManager();
+//
+//   // Engine tick
+//   void  __fastcall UpdatePhaseUi(void* phase);
 //
 // Hook macros expected:
 //   CREATE_HOOK(FuncName)
@@ -54,32 +67,78 @@ namespace IHHook
 {
     namespace Hooks_Ui
     {
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
         // Globals / state
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
         static std::mutex g_mx;
 
-        static std::unordered_set<void*> g_knownLayouts; // seen layout components
-        static std::unordered_map<void*, void*> g_layoutByModel; // model -> layout
-        static std::unordered_map<void*, uint32_t> g_modelNodeCount; // model -> enumerated node count
+        static std::unordered_set<void*> g_knownLayouts;
+        static std::unordered_map<void*, void*> g_layoutByModel;
+        static std::unordered_map<void*, uint32_t> g_modelNodeCount;
         static std::unordered_set<void*> g_enumeratedModels;
 
-        static std::unordered_map<void*, std::vector<void*>> g_nodesByLayout; // layout -> nodes (observed)
-        static std::unordered_multimap<void*, void*> g_layoutsByNode; // node -> layout(s)
-        static std::unordered_map<void*, std::pair<void*, const void*>> g_anchorByNode; // node -> (parent, port)
-        static std::unordered_map<void*, std::pair<void*, const void*>> g_anchorForLayout; // layout -> (parent, port)
-        static std::unordered_map<void*, void*> g_injectedNodeByLayout; // layout -> our UiModelText
+        static std::unordered_map<void*, std::vector<void*>> g_nodesByLayout;
+        static std::unordered_multimap<void*, void*> g_layoutsByNode;
+        static std::unordered_map<void*, std::pair<void*, const void*>> g_anchorByNode;
+        static std::unordered_map<void*, std::pair<void*, const void*>> g_anchorForLayout;
+        static std::unordered_map<void*, void*> g_injectedNodeByLayout; // legacy layout path (kept)
         static std::unordered_set<void*> g_ourNodes;
 
         static std::unordered_map<void*, std::string> g_textByNode;
         static std::unordered_map<void*, uint32_t> g_sidByNode;
         static std::unordered_map<void*, bool> g_visByNode;
+        static std::unordered_map<void*, void*> g_primaryModelByLayout;
+
+
+        // -----------------------------------------------------------------------------
+        // TARGET LAYOUT SIGNATURES (fill with the one(s) you want)
+        // -----------------------------------------------------------------------------
+        // How to get: run with this patch, open the HUD/layout you want, press F8 and copy the
+        // printed "sig64=..." for the layout you care about, then put it here.
+        static std::unordered_set<uint64_t> g_targetLayoutSigs = {
+            // example placeholders — replace with your real ones once discovered via F8
+            // 0xB7E8F8C02F76A8A1ull,
+            // 0xA4205B3D3C9730D9ull,
+            0x6E6A53858C7D348A, // Main Menu
+            0xF9325CE34EBD7F47, // HUD
+            0x74E5E1FF080986D1, // iDroid
+        };
+
+        static std::unordered_map<void*, uint64_t> g_sigByModel;
+
+        static std::unordered_map<void*, std::unordered_set<void*>> g_modelsOfLayout; // layout -> models
+
+        static std::unordered_map<void*, uint64_t> g_layoutAggSig; // layout -> aggregate sig
+
+        // WindowFunction classes we’ve seen during CreateNewWindow
+        static std::unordered_set<void*> g_seenWindowFunctions;
+
+        // Factory registry (if you want to pivot off RegisterWindowFactory too)
+        static std::unordered_map<int, void*> g_factoryById;
+
+        // Layout -> computed signature (so we don’t recompute constantly)
+        static std::unordered_map<void*, uint64_t> g_sigByLayout;
+
+        // Layouts that matched our target signature
+        static std::unordered_set<void*> g_targetLayouts;
+
+        // Class -> (layoutId -> sig) cache to accelerate F7 scans
+        static std::unordered_map<void*, std::unordered_map<uint64_t, uint64_t>> g_sigCacheByClass;
 
         static std::atomic<int> g_camoIndex{-1};
 
-        // -----------------------------------------------------------------------------//
+        // --- NEW: creation-context & window plumbing ---
+        static std::atomic<void*> g_lastTextCreationCtx{nullptr};
+        static std::atomic<uint32_t> g_lastTextSceneStr{0};
+
+        static std::unordered_set<void*> g_knownParentWindows; // from AddChildWindow(parent, child)
+        static std::atomic<void*> g_lastWindowFunctionClass{nullptr}; // captured from CreateNewWindow RCX
+        static std::atomic<void*> g_myWindow{nullptr};
+        static std::atomic<void*> g_myTextNode{nullptr};
+
+        // -----------------------------------------------------------------------------
         // Utilities
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
         template <class F>
         static bool Seh(const char* tag, void* ctx, F&& fn)
         {
@@ -95,7 +154,7 @@ namespace IHHook
                 return false;
             }
 #else
-        try { fn(); return true; } catch (...) { spdlog::warn("[SEH] {} ctx={}", tag, ctx); return false; }
+            try { fn(); return true; } catch (...) { spdlog::warn("[SEH] {} ctx={}", tag, ctx); return false; }
 #endif
         }
 
@@ -106,7 +165,7 @@ namespace IHHook
             g_textByNode[node] = t;
         }
 
-        static inline void RememberSid(void* node, uint32_t sid)
+        static inline void RememberSid(void* node, uint64_t sid)
         {
             if (!node) return;
             std::lock_guard<std::mutex> _l(g_mx);
@@ -153,6 +212,7 @@ namespace IHHook
             void* uix = ppUix ? *ppUix : nullptr;
             if (!uix) return;
 
+            // Refresh layout path nodes
             std::vector<void*> nodes;
             {
                 std::lock_guard<std::mutex> _l(g_mx);
@@ -160,11 +220,114 @@ namespace IHHook
                 for (auto& kv : g_injectedNodeByLayout) nodes.push_back(kv.second);
             }
             for (void* n : nodes) UpdateTextForNode(uix, n);
+
+            // Refresh window path node
+            if (void* n = g_myTextNode.load())
+            {
+                UpdateTextForNode(uix, n);
+            }
         }
 
-        // -----------------------------------------------------------------------------//
-        // Model selection / enumeration
-        // -----------------------------------------------------------------------------//
+        static inline uint64_t Fnv1a64(const void* data, size_t len)
+        {
+            const uint8_t* p = static_cast<const uint8_t*>(data);
+            uint64_t h = 1469598103934665603ull; // FNV offset basis
+            for (size_t i = 0; i < len; ++i)
+            {
+                h ^= p[i];
+                h *= 1099511628211ull;
+            }
+            return h;
+        }
+
+        static uint64_t RecomputeLayoutAggSig(void* layout) {
+            std::vector<uint64_t> sigs;
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                auto &S = g_modelsOfLayout[layout];
+                sigs.reserve(S.size());
+                for (auto m : S) {
+                    auto it = g_sigByModel.find(m);
+                    if (it != g_sigByModel.end() && it->second) sigs.push_back(it->second);
+                }
+            }
+            if (sigs.empty()) return 0;
+            std::sort(sigs.begin(), sigs.end());
+            sigs.erase(std::unique(sigs.begin(), sigs.end()), sigs.end());
+            const uint64_t agg = Fnv1a64(sigs.data(), sigs.size() * sizeof(uint64_t));
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_layoutAggSig[layout] = agg;
+                if (g_targetLayoutSigs.count(agg)) g_targetLayouts.insert(layout);
+            }
+            return agg;
+        }
+
+        static inline uint64_t RebasedPtr(const void* p) {
+            MEMORY_BASIC_INFORMATION mbi{};
+            if (VirtualQuery(p, &mbi, sizeof(mbi)) == sizeof(mbi) && mbi.AllocationBase) {
+                return (uint64_t)((uintptr_t)p - (uintptr_t)mbi.AllocationBase);
+            }
+            // Fallback if VirtualQuery fails (should be rare)
+            return (uint64_t)(uintptr_t)p;
+        }
+        
+        // Read up to N "common" node SIDs (UiModelNodeCommon->name SID at +0x6C) and build a stable hash.
+        // We sort & sample to get a small, order-invariant signature that survives minor reorderings.
+        static uint64_t ComputeLayoutSigFromModel(void* model, uint32_t sampleMax = 128) {
+            if (!model) return 0;
+
+            std::vector<void*> nodes;
+            nodes.reserve(sampleMax);
+            for (int i = 0; i < 4096 && (uint32_t)nodes.size() < sampleMax; ++i) {
+                void* n = GetModelNodeFromIndex(model, i);
+                if (!n) break;
+                nodes.push_back(n);
+            }
+            if (nodes.empty()) return 0;
+
+            std::vector<uint64_t> parts;
+            parts.reserve(nodes.size());
+
+            for (void* n : nodes) {
+                void** vtbl = *reinterpret_cast<void***>(n);
+                parts.push_back(RebasedPtr(vtbl));  // ASLR-invariant
+            }
+            if (parts.empty()) return 0;
+
+            std::sort(parts.begin(), parts.end());
+            if (parts.size() > sampleMax) parts.resize(sampleMax);
+            return Fnv1a64(parts.data(), parts.size() * sizeof(uint64_t));
+        }
+
+        // Get (or compute) a layout signature using its primary model.
+        static uint64_t GetOrComputeLayoutSig(void* layout) {
+            if (!layout) return 0;
+
+            { std::lock_guard<std::mutex> _l(g_mx);
+                auto it = g_sigByLayout.find(layout);
+                if (it != g_sigByLayout.end() && it->second) return it->second;
+            }
+
+            // Optional fallback (no arg tampering):
+            void* model = nullptr;
+            { std::lock_guard<std::mutex> _l(g_mx);
+                auto it = g_primaryModelByLayout.find(layout);
+                if (it != g_primaryModelByLayout.end()) model = it->second;
+            }
+
+            const uint64_t sig = ComputeLayoutSigFromModel(model);
+            if (sig) {
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_sigByLayout[layout] = sig;
+                if (g_targetLayoutSigs.count(sig)) g_targetLayouts.insert(layout);
+            }
+            return sig;
+        }
+
+        // -----------------------------------------------------------------------------
+        // Layout model discovery (legacy helpers retained for debugging/comparison)
+        // -----------------------------------------------------------------------------
         static thread_local bool tls_inEnum = false;
 
         static size_t EnumerateModelNodes(void* model, void* layout, uint32_t maxNodes = 4096)
@@ -209,7 +372,6 @@ namespace IHHook
         {
             if (!layout) return nullptr;
 
-            // 1) Try direct GetModelWrapper(layout,…)
             void* model = nullptr;
             Seh("GetModelWrapper.probe", layout, [&]
             {
@@ -218,7 +380,6 @@ namespace IHHook
             });
             if (model) return model;
 
-            // 2) Fall back to most “populated” known model for this layout
             void* bestModel = nullptr;
             uint32_t bestCount = 0;
             {
@@ -239,19 +400,13 @@ namespace IHHook
             return bestModel;
         }
 
-        // --- new helpers ---
+        // Dump model common ports (debug)
         static const void* TryGetAnyCommonPort(void* model)
         {
             const void* port = nullptr;
-
-            // First try the vfunc (some models do have a default)
-            Seh("GetModelNodeCommon", model, [&]
-            {
-                port = GetModelNodeCommon(model);
-            });
+            Seh("GetModelNodeCommon", model, [&] { port = GetModelNodeCommon(model); });
             if (port) return port;
 
-            // Fallback: scan model->commonPorts[] (base at +0x98, count at +0x90)
             Seh("ScanCommonPorts", model, [&]
             {
                 auto base = *reinterpret_cast<void***>(reinterpret_cast<uint8_t*>(model) + 0x98);
@@ -271,7 +426,6 @@ namespace IHHook
             return port;
         }
 
-        // Optional: dump all common ports for a model with their SIDs (node+0x6C)
         static void DumpCommonPortsForLayout(void* layout)
         {
             void* model = PickAnchorModelForLayout(layout);
@@ -293,7 +447,6 @@ namespace IHHook
                     void* node = base[i];
                     if (!node) continue;
                     uint32_t sid = 0;
-                    // 0x6C is where GetModelNodeCommonInternal compared EDX, i.e., the common SID.
                     Seh("ReadCommonSid", node, [&]
                     {
                         sid = *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(node) + 0x6C);
@@ -303,22 +456,16 @@ namespace IHHook
             });
         }
 
-
-        // -----------------------------------------------------------------------------//
-        // Anchor resolution — prefers SID’d node, falls back to generic common node
-        // -----------------------------------------------------------------------------//
-        // Replace the body of TryResolveAnchorForLayout with:
+        // Legacy anchor resolution for layouts
         static bool TryResolveAnchorForLayout(void* layout, std::pair<void*, const void*>& out)
         {
             if (!layout) return false;
-
             void* model = PickAnchorModelForLayout(layout);
             if (!model)
             {
                 spdlog::info("[ROOT] layout={} no model yet; cannot resolve anchor.", layout);
                 return false;
             }
-
             const void* port = TryGetAnyCommonPort(model);
             if (!port)
             {
@@ -326,12 +473,10 @@ namespace IHHook
                              model);
                 return false;
             }
-
             out = {layout, port};
             spdlog::info("[ROOT] layout={} anchor via common[]: parent={} port={}", layout, layout, port);
             return true;
         }
-
 
         static size_t ResolveAnchors_AllLayouts()
         {
@@ -355,12 +500,248 @@ namespace IHHook
             return made;
         }
 
-        // -----------------------------------------------------------------------------//
-        // Injection
-        // -----------------------------------------------------------------------------//
+        static bool FindMatchingLayoutInClass(void* cls, uint64_t& outId, uint64_t& outSig) {
+            if (!cls) return false;
+            std::vector<uint64_t> ids;
+            {   // snapshot known ids for this class
+                std::lock_guard<std::mutex> _l(g_mx);
+                auto it = g_sigCacheByClass.find(cls);
+                if (it != g_sigCacheByClass.end())
+                    for (auto& kv : it->second) ids.push_back(kv.first);
+            }
+            // First pass: use cached sigs; second pass: compute sigs for ids missing a value
+            for (auto id : ids) {
+                uint64_t sig = 0;
+                { std::lock_guard<std::mutex> _l(g_mx); sig = g_sigCacheByClass[cls][id]; }
+                if (!sig) {
+                    if (void* L = GetWindowLayout(cls, id)) {
+                        sig = GetOrComputeLayoutSig(L);
+                        std::lock_guard<std::mutex> _l(g_mx);
+                        g_sigCacheByClass[cls][id] = sig;
+                    }
+                }
+                if (sig && g_targetLayoutSigs.count(sig)) { outId = id; outSig = sig; return true; }
+            }
+            return false;
+        }
+
+        // Pick the best class we’ve seen that exposes a target layout.
+        static void* PickClassByTargetLayout(uint64_t& outLayoutId, uint64_t& outSig)
+        {
+            // 1) Prefer a class we saw most recently via CreateNewWindow.
+            if (void* wf = g_lastWindowFunctionClass.load())
+            {
+                if (FindMatchingLayoutInClass(wf, outLayoutId, outSig)) return wf;
+            }
+            // 2) Try all seen classes.
+            for (void* wf : g_seenWindowFunctions)
+            {
+                if (FindMatchingLayoutInClass(wf, outLayoutId, outSig)) return wf;
+            }
+            return nullptr;
+        }
+
+       
+
+        // -----------------------------------------------------------------------------
+        // WINDOW ROUTE
+        // -----------------------------------------------------------------------------
+
+        // Read the "parent component" and "port" that Window::AddChild uses for NodeConnectShim
+        static bool GetWindowGraphPort(void* window, void*& outParentComp, const void*& outPort)
+        {
+            if (!window) return false;
+            void* parentComp = nullptr;
+            const void* port = nullptr;
+            bool ok = Seh("GetWindowGraphPort", window, [&]
+            {
+                parentComp = *reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(window) + 0x28);
+                if (parentComp)
+                {
+                    port = reinterpret_cast<const void*>(reinterpret_cast<uint8_t*>(parentComp) + 0x60);
+                }
+            });
+            if (!ok || !parentComp || !port) return false;
+            outParentComp = parentComp;
+            outPort = port;
+            return true;
+        }
+
+        // Choose a parent window to host our own window under.
+        static void* PickParentWindow()
+        {
+            std::lock_guard<std::mutex> _l(g_mx);
+            if (g_knownParentWindows.empty()) return nullptr;
+            // Heuristic: first seen is usually the main “HUD/root-ish” parent (good enough to begin).
+            return *g_knownParentWindows.begin();
+        }
+
+        // Create our UiModelText node with a *valid* creation context.
+        static void* CreateSafeTextNode()
+        {
+            void* cc = g_lastTextCreationCtx.load(std::memory_order_relaxed);
+            uint32_t sc = g_lastTextSceneStr.load(std::memory_order_relaxed);
+            void* node = nullptr;
+
+            if (cc)
+            {
+                node = NewUiModelText(sc, cc, nullptr, nullptr);
+                if (!node) spdlog::warn("[WIN] NewUiModelText(cc) returned null; will try nullptr ctx as fallback.");
+            }
+            if (!node) node = NewUiModelText(0, nullptr, nullptr, nullptr);
+
+            if (!node)
+            {
+                spdlog::warn("[WIN] NewUiModelText failed (cc={} sc=0x{:08X})", cc, sc);
+                return nullptr;
+            }
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_ourNodes.insert(node);
+            }
+            return node;
+        }
+
+        static std::unordered_map<uint64_t, std::pair<void*, const void*>> g_anchorBySig; // sig -> (parent, port)
+        
+        static bool TryInjectViaAnchorBySig()
+        {
+            for (auto sig : g_targetLayoutSigs) {
+                std::pair<void*, const void*> anchor{};
+                { std::lock_guard<std::mutex> _l(g_mx);
+                    auto it = g_anchorBySig.find(sig);
+                    if (it == g_anchorBySig.end()) continue;
+                    anchor = it->second;
+                }
+                if (!anchor.first || !anchor.second) continue;
+
+                void* node = CreateSafeTextNode();
+                if (!node) return false;
+
+                bool ok = Seh("Connect(our text -> anchorBySig)", node, [&]{
+                    NodeConnectShim(node, anchor.first, const_cast<void*>(anchor.second));
+                });
+                if (!ok) return false;
+
+                if (auto** pp = GetGlobalUixUtility()) if (void* uix = *pp) {
+                    UpdateTextForNode(uix, node);
+                    SetModelNodePriority(uix, node, 240);
+                    SetModelNodeTextFontSize(uix, node, 28.0f, 0.0f);
+                    SetModelNodeTextColorRGB(uix, node, 1.0f, 1.0f, 1.0f);
+                }
+                spdlog::info("[WIN] Injected via anchorBySig; sig=0x{:016X} node={}", sig, node);
+                return true;
+            }
+            return false;
+        }
+
+        static bool GetWindowGraphPortSafe(void* w, void*& parentComp, const void*& port)
+        {
+            parentComp = nullptr; port = nullptr;
+            bool ok = Seh("GetWindowGraphPort", w, [&]{
+                parentComp = *(void**)((uint8_t*)w + 0x28);
+                if (parentComp) port = (const void*)((uint8_t*)parentComp + 0x60);
+            });
+            if (!ok || !parentComp || !port) return false;
+
+            MEMORY_BASIC_INFORMATION mbi{};
+            if (VirtualQuery(parentComp, &mbi, sizeof(mbi)) != sizeof(mbi) || !(mbi.State & MEM_COMMIT)) return false;
+            if (VirtualQuery(port, &mbi, sizeof(mbi)) != sizeof(mbi) || !(mbi.State & MEM_COMMIT)) return false;
+            return true;
+        }
+
+        // Perform the whole F7 sequence.
+        static bool CreateOurWindowAndInjectText()
+        {
+            if (g_myWindow.load())
+            {
+                spdlog::info("[WIN] Already created: {}", g_myWindow.load());
+                return true;
+            }
+            if (!g_lastTextCreationCtx.load())
+            {
+                spdlog::warn("[WIN] No ModelNodeText creation context harvested yet. Touch HUD/menu, then F7.");
+                return false;
+            }
+
+            // 1) Choose a WindowFunction *class* whose layouts match our target signature(s).
+            uint64_t layoutId = UINT64_MAX;
+            uint64_t layoutSig = 0;
+            void* cls = PickClassByTargetLayout(layoutId, layoutSig);
+
+            if (!cls)
+            {
+                spdlog::warn("[WIN] Could not find a WindowFunction with a target layout signature. "
+                    "Open the screen you want, press F8 to capture sig, and add it to g_targetLayoutSigs.");
+                // fallback: last seen class
+                cls = g_lastWindowFunctionClass.load();
+                if (!cls) return false;
+            }
+            else
+            {
+                spdlog::info("[WIN] Selected class={} matching layoutId={} sig64=0x{:016X}", cls, layoutId, layoutSig);
+            }
+
+            // 2) Parent window to host under.
+            void* parentWin = PickParentWindow();
+            if (!parentWin)
+            {
+                spdlog::warn("[WIN] No candidate parent window observed yet. Interact with UI and retry.");
+                return false;
+            }
+
+            // 3) Create our window instance.
+            void* myWin = CreateNewWindow(cls, nullptr, 0, 0);
+            if (!myWin)
+            {
+                spdlog::warn("[WIN] CreateNewWindow failed for class={}", cls);
+                return false;
+            }
+            spdlog::info("[WIN] Created {}", myWin);
+
+            AddChildWindow(parentWin, myWin);
+            spdlog::info("[WIN] Added as child of {}", parentWin);
+
+            // 4) Create a safe UiModelText and connect it to our window’s graph.
+            void* node = CreateSafeTextNode();
+            if (!node) return false;
+
+            void* parentComp = nullptr;
+            const void* port = nullptr;
+            if (!GetWindowGraphPort(myWin, parentComp, port))
+            {
+                spdlog::warn("[WIN] Couldn’t get graph port from our window.");
+                return false;
+            }
+
+            bool ok = Seh("Connect(our text -> our window)", node, [&]
+            {
+                NodeConnectShim(node, parentComp, const_cast<void*>(port));
+            });
+            if (!ok) return false;
+
+            // 5) Style & remember.
+            if (void** ppUix = GetGlobalUixUtility())
+                if (void* uix = *ppUix)
+                {
+                    UpdateTextForNode(uix, node);
+                    SetModelNodePriority(uix, node, 240);
+                    SetModelNodeTextFontSize(uix, node, 28.0f, 0.0f);
+                    SetModelNodeTextColorRGB(uix, node, 1.0f, 1.0f, 1.0f);
+                }
+
+            g_myWindow.store(myWin);
+            g_myTextNode.store(node);
+            spdlog::info("[WIN] Injected node={} into window={} (parentComp={} port={})", node, myWin, parentComp,
+                         port);
+            return true;
+        }
+
+        // -----------------------------------------------------------------------------
+        // Injection for legacy layout path (kept for reference; not used by F7 now)
+        // -----------------------------------------------------------------------------
         static size_t Inject_AllAnchoredLayouts()
         {
-            spdlog::info("0");
             void** ppUix = GetGlobalUixUtility();
             void* uix = ppUix ? *ppUix : nullptr;
             if (!uix)
@@ -368,13 +749,9 @@ namespace IHHook
                 spdlog::warn("[ROOT] UIX utility not available; aborting inject.");
                 return 0;
             }
-
-            spdlog::info("1");
-            // Try to resolve any missing anchors right before injection
             size_t newlyAnchored = ResolveAnchors_AllLayouts();
             if (newlyAnchored) spdlog::info("[ROOT] newly resolved anchors: {}", newlyAnchored);
 
-            spdlog::info("2");
             std::vector<void*> layouts;
             {
                 std::lock_guard<std::mutex> _l(g_mx);
@@ -384,7 +761,6 @@ namespace IHHook
             size_t injected = 0;
             for (void* layout : layouts)
             {
-                spdlog::info("3");
                 std::pair<void*, const void*> anchor{};
                 {
                     std::lock_guard<std::mutex> _l(g_mx);
@@ -398,26 +774,11 @@ namespace IHHook
                     anchor = it->second;
                 }
 
-                spdlog::info("4");
-                void* node = NewUiModelText(0, nullptr, nullptr, nullptr);
-                if (!node)
-                {
-                    spdlog::warn("[ROOT] NewUiModelText failed for layout={}", layout);
-                    continue;
-                }
-                {
-                    std::lock_guard<std::mutex> _l(g_mx);
-                    g_ourNodes.insert(node);
-                }
+                // Create text node using harvested ctx (safer than nullptr ctx).
+                void* node = CreateSafeTextNode();
+                if (!node) continue;
 
-                spdlog::info("5");
-                UpdateTextForNode(uix, node);
-                SetModelNodePriority(uix, node, 240);
-                SetModelNodeTextFontSize(uix, node, 28.0f, 0.0f);
-                SetModelNodeTextColorRGB(uix, node, 1.0f, 1.0f, 1.0f);
-
-                spdlog::info("6");
-                bool ok = Seh("NodeConnectShim", node, [&]
+                bool ok = Seh("NodeConnectShim(layout)", node, [&]
                 {
                     NodeConnectShim(node, anchor.first, const_cast<void*>(anchor.second));
                 });
@@ -427,9 +788,16 @@ namespace IHHook
                     continue;
                 }
 
-                spdlog::info("7");
-                bool vis = IsNodeVisible(uix, node);
-                RememberVis(node, vis);
+                bool vis = false;
+                if (uix)
+                {
+                    vis = IsNodeVisible(uix, node);
+                    RememberVis(node, vis);
+                    UpdateTextForNode(uix, node);
+                    SetModelNodePriority(uix, node, 240);
+                    SetModelNodeTextFontSize(uix, node, 28.0f, 0.0f);
+                    SetModelNodeTextColorRGB(uix, node, 1.0f, 1.0f, 1.0f);
+                }
 
                 {
                     std::lock_guard<std::mutex> _l(g_mx);
@@ -448,7 +816,38 @@ namespace IHHook
             void** ppUix = GetGlobalUixUtility();
             void* uix = ppUix ? *ppUix : nullptr;
 
-            spdlog::info("[ROOT] ===== Injection Status ({} layouts) =====", g_injectedNodeByLayout.size());
+            // Our window
+            spdlog::info("[WIN] ===== Our Window Status =====");
+            void* myWin = g_myWindow.load();
+            void* myText = g_myTextNode.load();
+            if (myWin)
+            {
+                void* pc = nullptr;
+                const void* pt = nullptr;
+                GetWindowGraphPort(myWin, pc, pt);
+                char v = '?';
+                if (uix && myText)
+                {
+                    bool b = IsNodeVisible(uix, myText);
+                    RememberVis(myText, b);
+                    v = b ? 'T' : 'F';
+                }
+                std::string text;
+                {
+                    std::lock_guard<std::mutex> _l(g_mx);
+                    auto tt = g_textByNode.find(myText);
+                    if (tt != g_textByNode.end()) text = tt->second;
+                }
+                spdlog::info("ourWindow={} parentComp={} port={} textNode={} vis={} text={}",
+                             myWin, pc, pt, myText, v, text.empty() ? "\"\"" : fmt::format("\"{}\"", text));
+            }
+            else
+            {
+                spdlog::info("ourWindow=<none>");
+            }
+
+            // Legacy layout
+            spdlog::info("[ROOT] ===== Layout Injection Status ({} layouts) =====", g_injectedNodeByLayout.size());
             for (auto& kv : g_injectedNodeByLayout)
             {
                 void* layout = kv.first;
@@ -484,12 +883,26 @@ namespace IHHook
                              layout, parent, port, node, v,
                              text.empty() ? "\"\"" : fmt::format("\"{}\"", text));
             }
+
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                spdlog::info("[SIG] ===== Known Layout Signatures ({} total) =====", g_sigByLayout.size());
+                for (auto& kv : g_sigByLayout)
+                {
+                    const bool isTarget = g_targetLayoutSigs.count(kv.second) != 0;
+                    // if (!kv.first || kv.second == 0) continue;
+                    // if (g_knownLayouts.count(kv.first) == 0) continue;
+                    spdlog::info("[SIG] layout={} sig64=0x{:016X}{}", kv.first, kv.second,
+                                 isTarget ? "  <TARGET>" : "");
+                }
+                spdlog::info("[SIG] ==============================================");
+            }
             spdlog::info("[ROOT] =========================================");
         }
 
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
         // Hotkeys
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
         static bool JustPressed(int vk)
         {
             static SHORT prev[256] = {};
@@ -504,16 +917,16 @@ namespace IHHook
         {
             if (JustPressed(VK_F7))
             {
-                spdlog::warn("[HK] F7 -> ROOT inject attempt on all layouts");
-                size_t n = Inject_AllAnchoredLayouts();
-                spdlog::info("[ROOT] injected {} layout(s).", n);
+                spdlog::warn("[HK] F7 -> Create our window + inject UiModelText");
+                bool injected = TryInjectViaAnchorBySig();
+                if (!injected) injected = CreateOurWindowAndInjectText();
+                spdlog::info("[WIN] F7 result: {}", injected ? "OK" : "FAILED");
             }
             if (JustPressed(VK_F8))
             {
-                spdlog::info("[HK] F8 -> dump injected status");
+                spdlog::info("[HK] F8 -> dump status");
                 DumpInjected();
             }
-            // In PollHotkeys():
             if (JustPressed(VK_F9))
             {
                 spdlog::info("[HK] F9 -> dump common ports for known layouts");
@@ -526,16 +939,16 @@ namespace IHHook
             }
             if (JustPressed(VK_F10))
             {
-                spdlog::info(
-                    "[HK] F10 -> resolve anchors (IsHaveModelNodeCommon + GetModelNodeCommonInternal/Generic)");
+                spdlog::info("[HK] F10 -> resolve layout anchors");
                 size_t n = ResolveAnchors_AllLayouts();
                 spdlog::info("[ROOT] anchors resolved: {}", n);
             }
         }
 
-        // -----------------------------------------------------------------------------//
-        // Hooks (light logging; forward to originals)
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
+        // Hooks
+        // -----------------------------------------------------------------------------
+
         // text hooks
         void __fastcall SetTextForModelNodeTextHook(void* uix, void* nodeText, void* textUnit, const char* rawText,
                                                     bool isLocalized)
@@ -544,13 +957,13 @@ namespace IHHook
             SetTextForModelNodeText(uix, nodeText, textUnit, rawText, isLocalized);
         }
 
-        void __fastcall SetTextUnitsForModelNodeTextHook(void* uix, void* nodeText, void* textUnit, uint32_t unitId)
+        void __fastcall SetTextUnitsForModelNodeTextHook(void* uix, void* nodeText, void* textUnit, uint64_t unitId)
         {
             RememberSid(nodeText, unitId);
             SetTextUnitsForModelNodeText(uix, nodeText, textUnit, unitId);
         }
 
-        bool __fastcall SetTextUnitsHook(void* nodeText, void* textUnit, uint32_t stringId)
+        bool __fastcall SetTextUnitsHook(void* nodeText, void* textUnit, uint64_t stringId)
         {
             RememberSid(nodeText, stringId);
             return SetTextUnits(nodeText, textUnit, stringId);
@@ -575,65 +988,54 @@ namespace IHHook
             RememberVis(node, v);
             return v;
         }
+        
 
         // wiring (learn anchors from live connects)
         void* __fastcall NodeConnectShimHook(void* node, void* parentComp, void* portNode)
         {
             void* ret = NodeConnectShim(node, parentComp, portNode);
-
+            // which layout does this node belong to?
+            void* layout = nullptr;
             {
                 std::lock_guard<std::mutex> _l(g_mx);
-                g_anchorByNode[node] = {parentComp, portNode};
+                auto it = g_layoutsByNode.find(node);
+                if (it != g_layoutsByNode.end()) layout = it->second;
             }
-            {
-                std::lock_guard<std::mutex> _l(g_mx);
-                bool ours = g_ourNodes.count(node) != 0;
-                auto rng = g_layoutsByNode.equal_range(node);
-                for (auto it = rng.first; it != rng.second; ++it)
-                {
-                    void* L = it->second;
-                    if (!L) continue;
-                    if (!ours && g_anchorForLayout.find(L) == g_anchorForLayout.end() && parentComp && portNode)
-                    {
-                        g_anchorForLayout[L] = {parentComp, portNode};
-                        spdlog::info("[ROOT] learned anchor: layout={} parent={} port={} (node={})",
-                                     L, parentComp, portNode, node);
+            if (layout) {
+                const uint64_t sig = RecomputeLayoutAggSig(layout);
+                if (sig && g_targetLayoutSigs.count(sig)) {
+                    std::lock_guard<std::mutex> _l(g_mx);
+                    if (!g_anchorBySig.count(sig) && parentComp && portNode) {
+                        g_anchorBySig[sig] = {parentComp, portNode};
+                        spdlog::info("[ROOT] learned anchor for sig=0x{:016X}: parent={} port={}", sig, parentComp, portNode);
                     }
                 }
             }
             return ret;
         }
 
-        // model discovery
-        void* __fastcall GetModelWrapperHook(void* layout, void* outModel, uint32_t outRoot)
+        // model discovery (layouts)
+        void* __fastcall GetModelWrapperHook(void* layout, void** outModel, uint32_t wantRoot)
         {
-            void* ret = GetModelWrapper(layout, outModel, outRoot);
+            void* ret = GetModelWrapper(layout, outModel, wantRoot);
+            void* model = nullptr;
+            if (ret && GetModelNodeFromIndex(ret,0)) model = ret;
+            else if (outModel) { void* out=nullptr; Seh("GMw.outModel.read", outModel, [&]{ out=*outModel; });
+                if (out && GetModelNodeFromIndex(out,0)) model = out; }
 
-            if (layout)
-            {
+            if (model) {
+                const uint64_t mSig = ComputeLayoutSigFromModel(model);  // you already have this
                 {
                     std::lock_guard<std::mutex> _l(g_mx);
                     g_knownLayouts.insert(layout);
+                    g_layoutByModel[model] = layout;
+                    g_sigByModel[model] = mSig;
+                    g_modelsOfLayout[layout].insert(model);
                 }
-
-                void* model = nullptr;
-                Seh("GMw.ret.probe", ret, [&] { if (ret && GetModelNodeFromIndex(ret, 0)) model = ret; });
-                if (!model && outModel)
-                {
-                    Seh("GMw.outModel.read", outModel, [&]
-                    {
-                        void* cand = *(void**)outModel;
-                        if (cand && GetModelNodeFromIndex(cand, 0)) model = cand;
-                    });
-                }
-                if (model)
-                {
-                    {
-                        std::lock_guard<std::mutex> _l(g_mx);
-                        g_layoutByModel[model] = layout;
-                    }
-                    EnumerateModelNodes(model, layout, 4096);
-                }
+                EnumerateModelNodes(model, layout, 4096);
+                const uint64_t Lsig = RecomputeLayoutAggSig(layout);
+                spdlog::info("[GMw] layout={} model={} wantRoot={} modelSig=0x{:016X} layoutSig=0x{:016X}",
+                             layout, model, wantRoot, mSig, Lsig);
             }
             return ret;
         }
@@ -645,59 +1047,159 @@ namespace IHHook
 
         void* __fastcall GetModelNodeCommonHook(void* selfModel)
         {
-            // Light trace (comment out if chatty)
-            // spdlog::trace("GetModelNodeCommon: model={}", selfModel);
             return GetModelNodeCommon(selfModel);
         }
 
-        void* __fastcall GetModelNodeCommonInternalHook(void* selfModel, uint32_t sid)
+        void* __fastcall GetModelNodeCommonInternalHook(void* selfModel, uint64_t sid)
         {
-            // spdlog::trace("GetModelNodeCommonInternal: model={} sid=0x{:08X}", selfModel, sid);
             return GetModelNodeCommonInternal(selfModel, sid);
         }
 
         bool __fastcall IsHaveModelNodeCommonHook(void* selfUixUtility, const void* model, uint64_t stringId)
         {
-            bool have = IsHaveModelNodeCommon(selfUixUtility, model, stringId);
-            // spdlog::trace("IsHaveModelNodeCommon: model={} sid=0x{:08X} have={}", model, (uint32_t)stringId, have ? "T":"F");
-            return have;
+            return IsHaveModelNodeCommon(selfUixUtility, model, stringId);
         }
 
+        // lifecycle
         void __fastcall OnLayoutComponentDestroyHook(void* self)
         {
+            // Best-effort: if our node got orphaned, forget it
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                for (auto it = g_injectedNodeByLayout.begin(); it != g_injectedNodeByLayout.end();)
+                {
+                    if (it->second == self) it = g_injectedNodeByLayout.erase(it);
+                    else ++it;
+                }
+                if (g_myTextNode.load() == self) g_myTextNode.store(nullptr);
+            }
             OnLayoutComponentDestroy(self);
         }
 
+        // creation ctx harvester
         void* __fastcall NewUiModelTextHook(uint32_t sceneStrCode32, void* creationCtx, void* opt0, void* opt1)
         {
-            spdlog::info("NewUiModelTextHook: sceneStrCode32={} creationCtx={} opt0={} opt1={}", sceneStrCode32, creationCtx, opt0, opt1);
+            // Harvest a known-good ctx + scene code for later self-spawned text.
+            if (creationCtx) g_lastTextCreationCtx.store(creationCtx, std::memory_order_relaxed);
+            if (sceneStrCode32) g_lastTextSceneStr.store(sceneStrCode32, std::memory_order_relaxed);
             return NewUiModelText(sceneStrCode32, creationCtx, opt0, opt1);
         }
 
-        const void* __fastcall LoadCreationContextHook(const void* serializedBlob, void* outCtx)
-        {
-            spdlog::info("LoadCreationContextHook: serializedBlob={} outCtx={}", serializedBlob, outCtx);
-            return LoadCreationContext(serializedBlob, outCtx);
-        }
+        // window plumbing hooks
         void __fastcall UpdateWindowGraphHook(void* selfWindow)
         {
-            spdlog::info("UpdateWindowGraphHook: selfWindow={}", selfWindow);
             UpdateWindowGraph(selfWindow);
         }
+
         void __fastcall AddChildWindowHook(void* selfWindow, void* childWindow)
         {
-            spdlog::info("AddChildWindowHook: selfWindow={} childWindow={}", selfWindow, childWindow);
+            // Remember parents we see in real connects — useful as “root-ish” hosts.
+            if (selfWindow)
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_knownParentWindows.insert(selfWindow);
+            }
             AddChildWindow(selfWindow, childWindow);
         }
-        void* __fastcall CreateNewWindowHook(void* cls /*WindowFunction* or service*/, void* nameStr, uint32_t flagsA, uint32_t flagsB)
+
+        void* __fastcall CreateNewWindowHook(void* cls /*WindowFunction*/, const void* nameStr, uint32_t flagsA,
+                                             uint32_t flagsB)
         {
-            spdlog::info("LoadCreationContextHook: cls={} nameStr={} flagsA={} flagsB={}", cls, nameStr,flagsA ,flagsB);
-            return CreateNewWindow(cls, nameStr,flagsA ,flagsB);
+            if (cls)
+            {
+                g_lastWindowFunctionClass.store(cls, std::memory_order_relaxed);
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_seenWindowFunctions.insert(cls);
+            }
+            return CreateNewWindow(cls, nameStr, flagsA, flagsB);
         }
+
         void* __fastcall GetWindowManagerHook()
         {
-            // spdlog::info("GetWindowManagerHook");
             return GetWindowManager();
+        }
+
+        void* __fastcall GetWindowLayoutHook(void* windowFunction, uint64_t layoutId)
+        {
+            void* L = GetWindowLayout(windowFunction, layoutId);
+            spdlog::info("GetWindowLayoutHook: ret layout={} params windowFunction={} layoutId={}",
+                         L, windowFunction, layoutId);
+            if (L) {
+                const uint64_t sig = RecomputeLayoutAggSig(L); // aggregate, not last-model
+                spdlog::info("GetWindowLayoutHook: ... sig64=0x{:016X}", sig);
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_sigCacheByClass[windowFunction][layoutId] = sig;
+            }
+            return L;
+        }
+
+        void* __fastcall FindWindowFactoryHook(void* collector, int hash)
+        {
+            return FindWindowFactory(collector, hash);
+        }
+
+        // vtbl[1] (offset +0x8) appears to be the GetId() returning the 32-bit hash used in FindWindowFactory
+        static int ReadFactoryId(void* factory)
+        {
+            if (!factory) return 0;
+            auto** vtbl = *reinterpret_cast<void***>(factory);
+            using GetIdFn = int(__fastcall*)(void*);
+            return ((GetIdFn)vtbl[1])(factory);
+        }
+
+        void __fastcall RegisterWindowFactoryHook(void* collector, void* factory)
+        {
+            // capture id->factory mapping
+            int id = 0;
+            Seh("Factory.GetId", factory, [&] { id = ReadFactoryId(factory); });
+            if (id)
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_factoryById[id] = factory;
+            }
+            RegisterWindowFactory(collector, factory);
+        }
+
+        void* __fastcall GetWindowHandleHook(void* mgr, void* windowFunction)
+        {
+            return GetWindowHandle(mgr, windowFunction);
+        }
+
+        void __fastcall SetLayoutInfoHook(void* windowHandle, const void* layoutInfo)
+        {
+            SetLayoutInfo(windowHandle, layoutInfo);
+        }
+
+        void* __fastcall GetTextUnitsHook(int index)
+        {
+            return GetTextUnits(index);
+        }
+
+        void __fastcall SetTextUnitHook(void* selfTextUnit, char* text, uint32_t flags, uint16_t p3, uint16_t p4,
+                                        float size, float tracking, uint32_t p7, uint32_t p8)
+        {
+            SetTextUnit(selfTextUnit, text, flags, p3, p4, size, tracking, p7, p8);
+        }
+
+        void __fastcall GraphUpdateHook(void* selfGraph)
+        {
+            GraphUpdate(selfGraph);
+        }
+
+        void* __fastcall GetUixLayoutHook(void* manager, const void* windowIface, uint64_t layoutId)
+        {
+            auto layout = GetUixLayout(manager, windowIface, layoutId);
+            spdlog::info("GetUixLayoutHook: ret layout={} params manager={} windowIface={} layoutId={}",
+                         layout, manager, windowIface, layoutId);
+            if (layout)
+            {
+                {
+                    std::lock_guard<std::mutex> _l(g_mx);
+                    g_knownLayouts.insert(layout);
+                }
+                GetOrComputeLayoutSig(layout);
+            }
+            return layout;
         }
 
         // frame/update
@@ -708,9 +1210,9 @@ namespace IHHook
             PollHotkeys();
         }
 
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
         // Install
-        // -----------------------------------------------------------------------------//
+        // -----------------------------------------------------------------------------
         void CreateHooks()
         {
             spdlog::set_level(spdlog::level::debug);
@@ -734,14 +1236,24 @@ namespace IHHook
             CREATE_HOOK(IsHaveModelNodeCommon)
 
             CREATE_HOOK(OnLayoutComponentDestroy)
-            CREATE_HOOK(LoadCreationContext)
 
             CREATE_HOOK(UpdatePhaseUi)
-            
+
+            // Window route
             CREATE_HOOK(UpdateWindowGraph)
             CREATE_HOOK(AddChildWindow)
             CREATE_HOOK(CreateNewWindow)
             CREATE_HOOK(GetWindowManager)
+            CREATE_HOOK(GetWindowLayout)
+
+            CREATE_HOOK(FindWindowFactory)
+            // CREATE_HOOK(RegisterWindowFactory) Crashes
+            CREATE_HOOK(GetWindowHandle)
+            CREATE_HOOK(SetLayoutInfo)
+            CREATE_HOOK(GetTextUnits)
+            CREATE_HOOK(SetTextUnit)
+            CREATE_HOOK(GraphUpdate)
+            CREATE_HOOK(GetUixLayout)
 
             ENABLEHOOK(SetTextForModelNodeText)
             ENABLEHOOK(SetTextUnitsForModelNodeText)
@@ -762,17 +1274,26 @@ namespace IHHook
             ENABLEHOOK(IsHaveModelNodeCommon)
 
             ENABLEHOOK(OnLayoutComponentDestroy)
-            ENABLEHOOK(LoadCreationContext)
 
             ENABLEHOOK(UpdatePhaseUi)
-            
+
+            // Window route
             ENABLEHOOK(UpdateWindowGraph)
             ENABLEHOOK(AddChildWindow)
             ENABLEHOOK(CreateNewWindow)
             ENABLEHOOK(GetWindowManager)
+            ENABLEHOOK(GetWindowLayout)
 
-            spdlog::info(
-                "[UI-HOOK] Hooks installed (ROOT via Model::GetModelNodeCommonInternal/IsHaveModelNodeCommon).");
+            ENABLEHOOK(FindWindowFactory)
+            // ENABLEHOOK(RegisterWindowFactory) Crashes
+            ENABLEHOOK(GetWindowHandle)
+            ENABLEHOOK(SetLayoutInfo)
+            ENABLEHOOK(GetTextUnits)
+            ENABLEHOOK(SetTextUnit)
+            ENABLEHOOK(GraphUpdate)
+            ENABLEHOOK(GetUixLayout)
+
+            spdlog::info("[UI-HOOK] Hooks installed (Window route on F7; layout route retained for debugging).");
         }
 
         // Optional Lua glue placeholders

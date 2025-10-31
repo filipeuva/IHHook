@@ -222,5 +222,13 @@ namespace IHHook {
 		{"AddChildWindow",0x141dca510},
 		{"CreateNewWindow",0x141dab8b0},
 		{"GetWindowManager",0x14d94c1a0},
+		{"GetWindowLayout",0x14d714220},
+		{"FindWindowFactory",0x14D94C970},
+		{"RegisterWindowFactory",0x14D94D4D0},
+		{"GetWindowHandle",0x14D963990},
+		{"SetLayoutInfo",0x14D77C9E0},
+		{"GetTextUnits",0x14D7813B0},
+		{"SetTextUnit",0x14D781F50},
+		{"GraphUpdate",0x14D85DF70},
 	};//map mgsvtpp_adresses_1_0_15_3_en
 }//namespace IHHook
