@@ -232,3 +232,8 @@ SetLayoutInfoFunc* SetLayoutInfo;
 GetTextUnitsFunc* GetTextUnits;
 SetTextUnitFunc* SetTextUnit;
 GraphUpdateFunc* GraphUpdate;
+
+ConnectLayoutUtilityComponentFunc* ConnectLayoutUtilityComponent;
+ConnectChildWindowToNodeFunc* ConnectChildWindowToNode;
+ConnectWindowToParentFunc* ConnectWindowToParent;
+LayoutConnectFunc* LayoutConnect;

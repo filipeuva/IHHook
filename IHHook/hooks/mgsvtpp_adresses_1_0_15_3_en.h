@@ -209,8 +209,8 @@ namespace IHHook {
 		{"NodeConnectShim",0x14d848be0},
 		{"GetGlobalUixUtility",0x144AF86E0},
 		{"SetModelNodeTextColorRGB",0x144B07F30},
-		{"SetModelNodeTextDrawPriority",0x144B07F30},
-		{"SetModelNodePriority",0x144B082F0},
+		{"SetModelNodeTextDrawPriority",0x144b082f0},
+		{"SetModelNodePriority",0x144b09f10},
 		{"SetModelNodeTextFontSize",0x144B08890},
 		{"SetModelNodeTextStatus",0x144B26700},
 		{"SetModelNodeTextTextAlign",0x144B26B00},
@@ -230,5 +230,9 @@ namespace IHHook {
 		{"GetTextUnits",0x14D7813B0},
 		{"SetTextUnit",0x14D781F50},
 		{"GraphUpdate",0x14D85DF70},
+		{"ConnectLayoutUtilityComponent",0x14d71bbb0 },
+		{"ConnectChildWindowToNode",0x14d847280},
+		{"ConnectWindowToParent",0x14d712e70},
+		{"LayoutConnect",0x145fffdf0},
 	};//map mgsvtpp_adresses_1_0_15_3_en
 }//namespace IHHook

@@ -189,12 +189,12 @@ typedef void (__fastcall ScopeZoomUiSetHelpAssetFunc)(void* self, void* layoutA,
 typedef void (__fastcall SetTextForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText, void* textUnit, const char* rawText, bool isLocalized);
 typedef void (__fastcall SetTextUnitsForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText, void* textUnit, uint64_t unitId);
 typedef bool (__fastcall SetTextUnitsFunc)(void* modelNodeText, void* textUnit, uint64_t unitId);
-typedef void (__fastcall ConnectLayoutComponentFunc)(void* child , void* parent, const void* portNode);
+typedef void (__fastcall ConnectLayoutComponentFunc)(void* childComp, void* parentComp, void* portPtr);
 typedef void (__fastcall SetLayoutParentComponentFunc)(void* child /*RCX*/, void* parent /*RDX*/);
 typedef int (__fastcall RemoveLayoutChildComponentFunc)(void* parent /*RCX*/, void* child /*RDX*/);
 typedef void (__fastcall OnLayoutComponentDestroyFunc)(void* self);
 typedef void (__fastcall ConnectChildWindowToRootFunc)(void* window /*RCX*/, void* childWindow /*RDX*/);
-typedef void* (__fastcall NodeConnectShimFunc)(void* node /*RCX*/, void* parentComp /*RDX*/, void* portNode   /*R8*/);
+typedef void (__fastcall NodeConnectShimFunc)(void* childComp /*or node*/, void* parentComp, void* port);
 typedef void (__fastcall InitMbStageSpotFunc)(void* self);
 typedef void (__fastcall InitPhaseUiFunc)(void* phase);
 typedef void (__fastcall UpdatePhaseUiFunc)(void* phase);
@@ -247,6 +247,10 @@ typedef void (__fastcall SetLayoutInfoFunc)(void* windowHandle, const void* layo
 typedef void* (__fastcall GetTextUnitsFunc)(int index);
 typedef void (__fastcall SetTextUnitFunc)(void* selfTextUnit, char* text, uint32_t flags, uint16_t p3, uint16_t p4, float size, float tracking, uint32_t p7, uint32_t p8);
 typedef void (__fastcall GraphUpdateFunc)(void* selfGraph);
+typedef void (__fastcall ConnectLayoutUtilityComponentFunc)(void* childComp, void* parentComp, uint32_t portSid);
+typedef void (__fastcall ConnectChildWindowToNodeFunc)(void* window, void* windowHandle, void* parentComp, void* portPtr);
+typedef void (__fastcall ConnectWindowToParentFunc)(void* windowFunction, void* parentComp, void* portPtr);
+typedef void (__fastcall LayoutConnectFunc)(void* uiUtil, void* windowIface, uint64_t sidA, uint64_t sidB, uint64_t sidModel, uint64_t sidPort);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -472,3 +476,7 @@ extern SetLayoutInfoFunc* SetLayoutInfo;
 extern GetTextUnitsFunc* GetTextUnits;
 extern SetTextUnitFunc* SetTextUnit;
 extern GraphUpdateFunc* GraphUpdate;
+extern ConnectLayoutUtilityComponentFunc* ConnectLayoutUtilityComponent;
+extern ConnectChildWindowToNodeFunc* ConnectChildWindowToNode;
+extern ConnectWindowToParentFunc* ConnectWindowToParent;
+extern LayoutConnectFunc* LayoutConnect;
