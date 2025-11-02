@@ -194,7 +194,7 @@ typedef void (__fastcall SetLayoutParentComponentFunc)(void* child /*RCX*/, void
 typedef int (__fastcall RemoveLayoutChildComponentFunc)(void* parent /*RCX*/, void* child /*RDX*/);
 typedef void (__fastcall OnLayoutComponentDestroyFunc)(void* self);
 typedef void (__fastcall ConnectChildWindowToRootFunc)(void* window /*RCX*/, void* childWindow /*RDX*/);
-typedef void (__fastcall NodeConnectShimFunc)(void* childComp /*or node*/, void* parentComp, void* port);
+typedef void* (__fastcall NodeConnectShimFunc)(void* owner, void* parentComp, void* portPtr, void* childNode);
 typedef void (__fastcall InitMbStageSpotFunc)(void* self);
 typedef void (__fastcall InitPhaseUiFunc)(void* phase);
 typedef void (__fastcall UpdatePhaseUiFunc)(void* phase);
