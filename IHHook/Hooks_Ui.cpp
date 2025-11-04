@@ -1,4 +1,4 @@
-﻿//11:48 02/11/25
+﻿//19:58 03/11/25
 // Hooks_Ui.cpp — Add-our-own Window + inject UiModelText (F7)  |  ViewTree (F8)
 
 #include "Hooks_Ui.h"
@@ -19,21 +19,7 @@
 #include <mutex>
 #include <algorithm>
 
-// ---- SEH LEAF HELPERS (no RAII, no STL, nothrow-ish) ----
-static __declspec(noinline) void* SafeLoadPtr(const void* p) {
-    void* v = nullptr;
-    __try { v = *(void* const*)p; }
-    __except (EXCEPTION_EXECUTE_HANDLER) { v = nullptr; }
-    return v;
-}
-
-static __forceinline const void* ParentField60(void* parent) {
-    return reinterpret_cast<const void*>(reinterpret_cast<uint8_t*>(parent) + 0x60);
-}
-
-static __declspec(noinline) void* SafeLoadParent60(void* parent) {
-    return SafeLoadPtr(ParentField60(parent));
-}
+#include <string>
 
 namespace IHHook
 {
@@ -49,13 +35,35 @@ namespace IHHook
         // -----------------------------------------------------------------------------
         // How to get: run with this patch, open the HUD/layout you want, press F8 and copy the
         // printed "sig64=..." for the layout you care about, then put it here.
-        static std::unordered_set<uint64_t> g_targetLayoutSigs = {
-            // example placeholders — replace with your real ones once discovered via F8
-            //0x6E6A53858C7D348A, // Main Menu?
-            //0xF9325CE34EBD7F47, // HUD?
-            //0x74E5E1FF080986D1, // iDroid?
-            0xC2FA1C76BFC052FA, // last to load before Main Menu
-            0x3DA77CCC5B61E7C7, //unknown ?
+        
+        // Known layout SIDs you want to target (your originals)
+        static std::unordered_set<uint64_t> g_targetKnownLayoutSids = {
+            0x6E6A53858C7D348A, // Main Menu
+            0xF9325CE34EBD7F47, // HUD
+            0xE350B3CA76A89176,
+            0x06B9B0CB69982096,
+            0xDA11FACDB2201229
+        };
+
+        // globals
+        static std::vector<void*> g_ourInjects;
+
+        static std::unordered_map<uint64_t, uint32_t> g_lastPortSidBySig; // sig64 -> sidPort
+
+        // windowIface -> layout, learned via GetUixLayout
+        static std::unordered_map<void*, void*> g_layoutByWindowIface;
+
+        // known SID -> computed modelSig observed on that layout
+        static std::unordered_map<uint64_t, uint64_t> g_knownSidToComputedSig;
+
+
+        // --- Unified anchor type + maps ---
+        struct Anchor
+        {
+            void* owner{}; // windowFunction / owner if we learned one
+            void* parentComp{}; // the parent component we’ll attach under
+            void* portField{}; // address of (parent+0x60)
+            void* portVal{}; // value at *(parent+0x60) when learned
         };
 
         // Observed layouts/models
@@ -63,57 +71,39 @@ namespace IHHook
         static std::unordered_map<void*, void*> g_primaryModelByLayout; // layout -> model
         static std::unordered_map<void*, uint64_t> g_sigByModel; // model  -> sig64
         static std::unordered_map<void*, void*> g_layoutByModel; // model  -> layout
+        static std::unordered_map<void*, uint64_t> g_currentSigByLayout; // layout -> sig64 (active)
 
-        // “Currently visible” sigs per layout (updated via GetModelWrapper hook)
-        static std::unordered_map<void*, uint64_t> g_currentSigByLayout; // layout -> sig64
-
-        // Anchor we need for injection
-        struct Anchor
-        {
-            void* owner{}; // learned from NodeConnectShim (preferred) or ownerHint
-            void* parentComp{}; // parent layout component
-            const void* portField{}; // pointer to the field (parent+0x60) if learned from Connect* route
-            const void* portValue{}; // actual node pointer value (learned from shim or deref of field)
-        };
-
-        static std::unordered_map<uint64_t, Anchor> g_anchorBySig; // sig64 -> anchor
-
-        // Backfill: (parentComp, portValue) -> owner (from any shim observed)
-        static inline uint64_t HashTwoPtrs(void* a, const void* b)
-        {
-            uint64_t x = (uint64_t)(uintptr_t)a;
-            uint64_t y = (uint64_t)(uintptr_t)b;
-            // FNV-1a on the two pointers
-            uint64_t h = 1469598103934665603ull;
-            auto mix = [&](uint64_t v)
-            {
-                for (int i = 0; i < 8; i++)
-                {
-                    h ^= (uint8_t)(v & 0xFF);
-                    h *= 1099511628211ull;
-                    v >>= 8;
-                }
-            };
-            mix(x);
-            mix(y);
-            return h;
-        }
-
-        static std::unordered_map<uint64_t, void*> g_ownerByParentPortValue; // key(parent,portValue) -> owner
-
-        // Track our own nodes to avoid re-learning on our own connects
+        // Track our own nodes to avoid “learning” from our own connects
         static std::unordered_set<void*> g_ourNodes;
 
-        // Harvested creation context (for safe NewUiModelText)
+        // Harvested creation context for safe NewUiModelText
         static std::atomic<void*> g_lastTextCreationCtx{nullptr};
         static std::atomic<uint32_t> g_lastTextSceneStr{0};
 
-        // Simple camo index to display (replace/update from your gameplay hook)
-        static std::atomic<int> g_camoIndex{-1};
+        static std::unordered_map<uint64_t, Anchor> g_anchorBySig; // sig64 -> Anchor
+        static std::unordered_map<void*, Anchor> g_anchorForLayout; // layout -> Anchor (borrowable)
+
+        static inline void* Field60Addr(void* parent)
+        {
+            return parent ? (void*)((uint8_t*)parent + 0x60) : nullptr;
+        }
+
+        static inline void* ReadField60(void* parent)
+        {
+            void* f = Field60Addr(parent);
+            return f ? *(void**)f : nullptr;
+        }
+
+        static inline bool Field60Matches(void* parent, void* expectedVal)
+        {
+            return ReadField60(parent) == expectedVal;
+        }
+
 
         // -----------------------------------------------------------------------------
         // Utils
         // -----------------------------------------------------------------------------
+
         static inline uint64_t Fnv1a64(const void* data, size_t len)
         {
             const uint8_t* p = static_cast<const uint8_t*>(data);
@@ -130,13 +120,11 @@ namespace IHHook
         {
             MEMORY_BASIC_INFORMATION mbi{};
             if (VirtualQuery(p, &mbi, sizeof(mbi)) == sizeof(mbi) && mbi.AllocationBase)
-            {
                 return (uint64_t)((uintptr_t)p - (uintptr_t)mbi.AllocationBase);
-            }
-            return (uint64_t)(uintptr_t)p; // fallback
+            return (uint64_t)(uintptr_t)p;
         }
 
-        // Stable sig64: sample node vtbls from model (ASLR-invariant via rebase)
+        // Compute sig64 from vtable samples of nodes in a model (ASLR-invariant)
         static uint64_t ComputeLayoutSigFromModel(void* model, uint32_t sampleMax = 128)
         {
             if (!model) return 0;
@@ -155,11 +143,11 @@ namespace IHHook
             return Fnv1a64(parts.data(), parts.size() * sizeof(uint64_t));
         }
 
-        static void RememberOurNode(void* n)
-        {
-            if (!n) return;
+        static void RememberOurNode(void* n){
+            if(!n) return;
             std::lock_guard<std::mutex> _l(g_mx);
             g_ourNodes.insert(n);
+            g_ourInjects.push_back(n);
         }
 
         static bool IsOurNode(void* n)
@@ -168,138 +156,101 @@ namespace IHHook
             return g_ourNodes.count(n) != 0;
         }
 
-        static void UpdateTextForNode(void* uix, void* node)
+        // Optional: tweak text; safe to omit if you just want it visible
+        // replace your UpdateTextForNode with this
+        static void UpdateTextForNode(void* uix, void* node, const char* s = "Hello World!")
         {
             if (!uix || !node) return;
-            char buf[64];
-            const int v = g_camoIndex.load();
-            if (v >= 0) _snprintf_s(buf, _TRUNCATE, "Camo: %d", v);
-            else _snprintf_s(buf, _TRUNCATE, "Camo: ?");
-            SetTextForModelNodeText(uix, node, nullptr, buf, false);
-            SetModelNodePriority(uix, node, 240);
+
+            // 1) Get a reusable text unit and configure it (size/flags as you like)
+            void* unit = GetTextUnits(0);               // engine-provided text unit pool
+            if (unit) {
+                // flags/p3/p4/p7/p8 are game-specific; these “vanilla-ish” values work broadly
+                SetTextUnit(unit, (char*)s, /*flags=*/1, /*p3=*/0, /*p4=*/0,
+                            /*size=*/28.0f, /*tracking=*/0.0f, /*p7=*/0, /*p8=*/0);
+                SetTextUnitsForModelNodeText(uix, node, unit, /*unitId=*/0);
+            } else {
+                // fallback: some builds still honor direct string set
+                SetTextForModelNodeText(uix, node, nullptr, s, /*isLocalized=*/false);
+            }
+
+            // 2) Make sure the engine flips the right visibility bit (wrapper takes the manager)
+            SetNodeVisibilityWrapper(uix, node, true);
+
+            // 3) Push above most HUD layers and make it legible
+            SetModelNodePriority(uix, node, 1000);      // higher than your previous 240
             SetModelNodeTextFontSize(uix, node, 28.0f, 0.0f);
             SetModelNodeTextColorRGB(uix, node, 1.0f, 1.0f, 1.0f);
         }
 
-        static void MaybeRefreshInjectedText()
-        {
-            static int prev = INT_MIN;
-            const int v = g_camoIndex.load();
-            if (v == prev) return;
-            prev = v;
-            if (auto** pp = GetGlobalUixUtility())
-                if (void* uix = *pp) { (void)uix; /* refresh next creation; we don't hold a list here */ }
-        }
-
-        // Pick first ACTIVE target sig with anchor; else any learned target sig
         static uint64_t PickActiveTargetSig()
         {
             std::lock_guard<std::mutex> _l(g_mx);
+
+            // 1) direct match (computed sig explicitly listed)
             for (auto& kv : g_currentSigByLayout)
-            {
-                const uint64_t sig = kv.second;
-                if (sig && g_targetLayoutSigs.count(sig) && g_anchorBySig.count(sig)) return sig;
+                if (kv.second && g_targetKnownLayoutSids.count(kv.second))
+                    return kv.second;
+
+            // 2) alias match (known layout SID -> computed sig observed on this run)
+            for (auto& kv : g_knownSidToComputedSig) {
+                const uint64_t computed = kv.second;
+                for (auto& k2 : g_currentSigByLayout)
+                    if (k2.second == computed)
+                        return computed;
             }
-            for (auto s : g_targetLayoutSigs) if (g_anchorBySig.count(s)) return s;
+
             return 0;
         }
 
-        // -----------------------------------------------------------------------------
-        // Anchor learning helpers (field vs value) + validation
-        // -----------------------------------------------------------------------------
-        static void BindAnchor_FromField(uint64_t sig, void* ownerHint, void* parentComp, const void* portFieldPtr)
-        {
-            if (!sig || !parentComp || !portFieldPtr) return;
-
-            const void* expectedField = ParentField60(parentComp);
-            if (expectedField != portFieldPtr) {
-                spdlog::debug("[ANCHOR] field-route: parent+0x60 mismatch (parent={} field={} expected={})",
-                              parentComp, portFieldPtr, expectedField);
-                // continue anyway
-            }
-
-            const void* val = SafeLoadParent60(parentComp); // <-- was __try deref
-
-            {
-                std::lock_guard<std::mutex> _l(g_mx);
-                Anchor& a = g_anchorBySig[sig];
-                a.parentComp = parentComp;
-                a.portField  = expectedField;   // normalized to parent+0x60
-                if (val && !a.portValue) a.portValue = val;
-                if (ownerHint && !a.owner) a.owner = ownerHint;
-            }
-
-            spdlog::info("[ANCHOR] bound (Connect* field) sig=0x{:016X} parent={} field={} val={} owner={}",
-                         sig, parentComp, expectedField, val, ownerHint);
+        static void* FindLayoutForSig_NoLock(uint64_t sig) {
+            for (auto& kv : g_sigByLayout) if (kv.second == sig) return kv.first;
+            return nullptr;
         }
-        static void BindAnchor_FromShim(uint64_t sig, void* owner, void* parentComp, const void* portValue)
-        {
-            if (!sig || !owner || !parentComp || !portValue) return;
-
-            const void* field  = ParentField60(parentComp);
-            const void* curVal = SafeLoadPtr(field); // <-- was __try
-
-            {
-                std::lock_guard<std::mutex> _l(g_mx);
-                Anchor& a = g_anchorBySig[sig];
-                a.parentComp = parentComp;
-                a.portValue  = portValue; // authoritative from shim
-                if (!a.portField) a.portField = field;
-                a.owner = owner;
-                g_ownerByParentPortValue[HashTwoPtrs(parentComp, portValue)] = owner;
-            }
-
-            spdlog::info("[ANCHOR] updated (NodeConnectShim) sig=0x{:016X} owner={} parent={} field={} val={} curVal={} match={}",
-                         sig, owner, parentComp, field, portValue, curVal, (curVal == portValue));
+        
+        static void* FindLayoutForSig(uint64_t sig) { // existing external API
+            std::lock_guard<std::mutex> _l(g_mx);
+            return FindLayoutForSig_NoLock(sig);
         }
 
-        // Choose a sig to bind to (prefer active target; else any current; else 0)
-        static uint64_t PickSigForBinding()
+        static void BindAnchorToActiveSigAndLayout(void* parentComp, const char* srcTag, void* ownerHint = nullptr)
+        {
+            if (!parentComp) return;
+
+            const auto field = Field60Addr(parentComp);
+            const auto val   = ReadField60(parentComp);
+            const uint64_t sig = PickActiveTargetSig();
+            if (!sig) { spdlog::debug("[ANCHOR] {}: no active target; suppress", srcTag); return; }
+
+            std::lock_guard<std::mutex> _l(g_mx);
+            auto& a = g_anchorBySig[sig];
+            a.parentComp = parentComp;
+            a.portField  = field;
+            a.portVal    = val;
+            if (ownerHint && !a.owner) a.owner = ownerHint;
+
+            if (void* layout = FindLayoutForSig_NoLock(sig))  // <-- no-lock helper
+                g_anchorForLayout[layout] = a;
+
+            spdlog::info("[ANCHOR] {}: sig=0x{:016X} parent={} field={} val={} owner={}",
+                         srcTag, sig, parentComp, field, val, a.owner);
+        }
+
+        // Borrow an anchor previously seen on the same layout
+        static bool TryBorrowAnchorFromLayout(uint64_t sig, Anchor& out)
         {
             std::lock_guard<std::mutex> _l(g_mx);
-            for (auto& kv : g_currentSigByLayout)
-            {
-                if (g_targetLayoutSigs.count(kv.second)) return kv.second;
+            if (void* layout = FindLayoutForSig_NoLock(sig)) {
+                auto it = g_anchorForLayout.find(layout);
+                if (it != g_anchorForLayout.end() && it->second.parentComp && it->second.portField) {
+                    if (Field60Addr(it->second.parentComp) == it->second.portField) {
+                        out = it->second;
+                        return true;
+                    }
+                }
             }
-            if (!g_currentSigByLayout.empty()) return g_currentSigByLayout.begin()->second;
-            return 0;
+            return false;
         }
-
-        static bool ValidateAnchor(const Anchor& a)
-        {
-            if (!a.parentComp) return false;
-
-            const void* field = ParentField60(a.parentComp);
-            const void* val   = SafeLoadParent60(a.parentComp); // <-- was __try
-
-            if (a.portField && a.portField != field) {
-                spdlog::warn("[ANCHOR] validate: parent+0x60 changed (have={} now={})", a.portField, field);
-                return false;
-            }
-            if (a.portValue && val && a.portValue != val) {
-                spdlog::warn("[ANCHOR] validate: field value changed (have={} now={})", a.portValue, val);
-                return false;
-            }
-            return true;
-        }
-
-        // Try to backfill owner using (parent, current field value)
-        static void TryBackfillOwner(Anchor& a)
-        {
-            if (a.owner) return;
-            const void* val = SafeLoadParent60(a.parentComp); // <-- was __try
-            if (!val) return;
-
-            const uint64_t k = HashTwoPtrs(a.parentComp, val);
-            auto it = g_ownerByParentPortValue.find(k);
-            if (it != g_ownerByParentPortValue.end() && it->second) {
-                a.owner = it->second;
-                if (!a.portValue) a.portValue = val;
-                spdlog::info("[ANCHOR] owner backfilled from map: owner={} parent={} val={}",
-                             a.owner, a.parentComp, val);
-            }
-        }
-
 
         // -----------------------------------------------------------------------------
         // Hooks
@@ -319,7 +270,8 @@ namespace IHHook
 
         bool __fastcall SetTextUnitsHook(void* nodeText, void* textUnit, uint64_t stringId)
         {
-            return SetTextUnits(nodeText, textUnit, stringId);
+            bool r = SetTextUnits(nodeText, textUnit, stringId);
+            return r;
         }
 
         // visibility hooks
@@ -335,24 +287,16 @@ namespace IHHook
 
         bool __fastcall IsNodeVisibleHook(void* anyMgr, void* node)
         {
-            bool v = IsNodeVisible(anyMgr, node);
-            return v;
+            return IsNodeVisible(anyMgr, node);
         }
 
-        // NodeConnectShim — authoritative owner + portValue (the node)
-        void* __fastcall NodeConnectShimHook(void* owner, void* parentComp, void* portValue, void* childNode)
+        void* __fastcall NodeConnectShimHook(void* owner, void* parentComp, void* portPtr, void* childNode)
         {
-            const bool ours = IsOurNode(childNode);
-
-            const void* curVal = SafeLoadParent60(parentComp); // <-- was __try
-            spdlog::debug("[SHIM] owner={} parent={} portValue={} curFieldVal={} match={}",
-                          owner, parentComp, portValue, curVal, (curVal == portValue));
-
-            if (!ours && owner && parentComp && portValue) {
-                const uint64_t sig = PickSigForBinding();
-                if (sig) BindAnchor_FromShim(sig, owner, parentComp, portValue);
+            if (!IsOurNode(childNode))
+            {
+                BindAnchorToActiveSigAndLayout(parentComp, "NodeConnectShim", owner);
             }
-            return NodeConnectShim(owner, parentComp, portValue, childNode);
+            return NodeConnectShim(owner, parentComp, portPtr, childNode);
         }
 
         // Model discovery
@@ -375,14 +319,10 @@ namespace IHHook
                     g_primaryModelByLayout[layout] = model;
                     g_currentSigByLayout[layout] = sig;
                 }
-                if (g_targetLayoutSigs.count(sig))
-                {
+                if (g_targetKnownLayoutSids.count(sig))
                     spdlog::info("[SIG] layout={} model={} sig64=0x{:016X}  <TARGET>", layout, model, sig);
-                }
                 else
-                {
                     spdlog::debug("[SIG] layout={} model={} sig64=0x{:016X}", layout, model, sig);
-                }
             }
             return ret;
         }
@@ -410,6 +350,19 @@ namespace IHHook
         // lifecycle
         void __fastcall OnLayoutComponentDestroyHook(void* self)
         {
+            {
+                std::lock_guard<std::mutex> _l(g_mx);
+                // purge from sig->anchor
+                for (auto it = g_anchorBySig.begin(); it != g_anchorBySig.end(); ) {
+                    if (it->second.parentComp == self) it = g_anchorBySig.erase(it);
+                    else ++it;
+                }
+                // purge from layout->anchor
+                for (auto it = g_anchorForLayout.begin(); it != g_anchorForLayout.end(); ) {
+                    if (it->second.parentComp == self) it = g_anchorForLayout.erase(it);
+                    else ++it;
+                }
+            }
             OnLayoutComponentDestroy(self);
         }
 
@@ -488,46 +441,76 @@ namespace IHHook
         void* __fastcall GetUixLayoutHook(void* manager, const void* windowIface, uint64_t layoutId)
         {
             auto layout = GetUixLayout(manager, windowIface, layoutId);
+            if (layout) {
+                std::lock_guard<std::mutex> _l(g_mx);
+                g_layoutByWindowIface[(void*)windowIface] = layout;
+            }
             return layout;
         }
 
         // Window / layout connects (FIELD route)
         // NOTE: If your typedefs expose an extra leading 'this' for a UI utility, pass it as ownerHint below.
-        void __fastcall ConnectLayoutComponentHook(void* childComp, void* parentComp, void* portFieldPtr)
+        void __fastcall ConnectLayoutComponentHook(void* childComp, void* parentComp, void* portComp)
         {
-            const uint64_t sig = PickSigForBinding();
-            if (sig) BindAnchor_FromField(sig, /*ownerHint*/nullptr, parentComp, portFieldPtr);
-            ConnectLayoutComponent(childComp, parentComp, portFieldPtr);
+            if (ReadField60(parentComp) == portComp)
+                BindAnchorToActiveSigAndLayout(parentComp, "ConnectLayoutComponent");
+            ConnectLayoutComponent(childComp, parentComp, portComp);
         }
 
         void __fastcall ConnectLayoutUtilityComponentHook(void* childComp, void* parentComp, uint32_t portSid)
         {
-            // No direct field ptr here; skip.
             ConnectLayoutUtilityComponent(childComp, parentComp, portSid);
         }
 
-        void __fastcall ConnectChildWindowToNodeHook(void* window, void* windowHandle, void* parentComp,
-                                                     void* portFieldPtr)
+        void __fastcall ConnectChildWindowToNodeHook(void* window, void* windowHandle, void* parentComp, void* portPtr)
         {
-            const uint64_t sig = PickSigForBinding();
-            // We can treat 'window' as an ownerHint (same graph family), but NodeConnectShim remains authoritative.
-            if (sig) BindAnchor_FromField(sig, /*ownerHint*/window, parentComp, portFieldPtr);
-            ConnectChildWindowToNode(window, windowHandle, parentComp, portFieldPtr);
+            if (ReadField60(parentComp) == portPtr)
+                BindAnchorToActiveSigAndLayout(parentComp, "ConnectChildWindowToNode", window);
+            ConnectChildWindowToNode(window, windowHandle, parentComp, portPtr);
         }
 
-        void __fastcall ConnectWindowToParentHook(void* windowFunction, void* parentComp, void* portFieldPtr)
+        void __fastcall ConnectWindowToParentHook(void* windowFunction, void* parentComp, void* portPtr)
         {
-            const uint64_t sig = PickSigForBinding();
-            if (sig) BindAnchor_FromField(sig, /*ownerHint*/windowFunction, parentComp, portFieldPtr);
-            ConnectWindowToParent(windowFunction, parentComp, portFieldPtr);
+            if (ReadField60(parentComp) == portPtr)
+                BindAnchorToActiveSigAndLayout(parentComp, "ConnectWindowToParent", windowFunction);
+            ConnectWindowToParent(windowFunction, parentComp, portPtr);
         }
 
-
-        void __fastcall LayoutConnectHook(void* uiUtil, void* windowIface, uint64_t sidA, uint64_t sidB,
+        void __fastcall LayoutConnectHook(void* uiUtil, void* windowIface,
+                                          uint64_t sidA, uint64_t sidB,
                                           uint64_t sidModel, uint64_t sidPort)
         {
+            // keep your debug line
             spdlog::debug("[LAYOUTCONNECT] wi={} sA=#{:08X} sB=#{:08X} sModel=#{:08X} sPort=#{:08X}",
                           windowIface, (uint32_t)sidA, (uint32_t)sidB, (uint32_t)sidModel, (uint32_t)sidPort);
+
+            // NEW: learn alias when this is one of our known targets
+
+            if (uint64_t sig = PickActiveTargetSig())
+                g_lastPortSidBySig[sig] = (uint32_t)sidPort;
+
+            if (g_targetKnownLayoutSids.count(sidModel)) {
+                void* layout = nullptr;
+                uint64_t computed = 0;
+                {
+                    std::lock_guard<std::mutex> _l(g_mx);
+                    auto itL = g_layoutByWindowIface.find(windowIface);
+                    if (itL != g_layoutByWindowIface.end()) {
+                        layout = itL->second;
+                        auto itS = g_currentSigByLayout.find(layout);
+                        if (itS != g_currentSigByLayout.end())
+                            computed = itS->second;
+                    }
+                }
+                if (layout && computed) {
+                    g_knownSidToComputedSig[sidModel] = computed;
+                    spdlog::info("[ALIAS] modelSID=#{:08X} -> computedSig=0x{:016X} (layout={})",
+                                 (uint32_t)sidModel, computed, layout);
+                } else {
+                    spdlog::debug("[ALIAS] no layout/sig yet for modelSID=#{:08X}", (uint32_t)sidModel);
+                }
+            }
+
             LayoutConnect(uiUtil, windowIface, sidA, sidB, sidModel, sidPort);
         }
 
@@ -535,8 +518,8 @@ namespace IHHook
         void __fastcall UpdatePhaseUiHook(void* phase)
         {
             UpdatePhaseUi(phase);
-            MaybeRefreshInjectedText();
 
+            // Hotkeys
             static SHORT prev[256] = {};
             auto just = [&](int vk)
             {
@@ -549,51 +532,44 @@ namespace IHHook
 
             if (just(VK_F7))
             {
-                spdlog::warn("[HK] F7 -> inject our UiModelText into active target layout");
-                uint64_t sig = PickActiveTargetSig();
-                if (!sig)
+                spdlog::warn("[HK] F7 -> inject…");
+
+                do
                 {
-                    spdlog::warn(
-                        "[INJECT] No active target sig with a learned anchor yet. Show the target UI, interact, then try again.");
-                }
-                else
-                {
+                    const uint64_t sig = PickActiveTargetSig();
+                    if (!sig)
+                    {
+                        spdlog::warn("[INJECT] No active target visible.");
+                        break;
+                    }
+
                     Anchor a{};
                     {
-                        std::lock_guard<std::mutex> _l(g_mx);
-                        a = g_anchorBySig[sig];
+                        std::lock_guard<std::mutex> _l(g_mx); // <-- add
+                        auto it = g_anchorBySig.find(sig);
+                        if (it != g_anchorBySig.end() && it->second.parentComp && it->second.portField)
+                        {
+                            a = it->second;
+                            spdlog::info("[INJECT] using exact sig anchor 0x{:016X}", sig);
+                        }
                     }
                     if (!a.parentComp)
                     {
-                        spdlog::warn("[INJECT] Anchor for sig=0x{:016X} missing parent.", sig);
-                        return;
-                    }
-                    // Try to backfill owner if needed
-                    if (!a.owner)
-                    {
-                        TryBackfillOwner(a);
-                        if (!a.owner)
+                        if (!TryBorrowAnchorFromLayout(sig, a))
                         {
-                            spdlog::warn("[INJECT] Anchor for sig=0x{:016X} has no owner yet.", sig);
+                            spdlog::warn("[INJECT] No valid anchor yet for 0x{:016X}. Interact with that UI first.",
+                                         sig);
+                            break;
+                        } else {
+                            spdlog::info("[INJECT] borrowed anchor from layout for 0x{:016X}", sig);
                         }
                     }
-                    // Validate parent/field/value consistency; also fill a.portValue from current field if missing
-                    if (!ValidateAnchor(a))
-                    {
-                        spdlog::warn("[INJECT] Anchor for sig=0x{:016X} failed validation.", sig);
-                        return;
-                    }
-                    if (!a.portValue) {
-                        a.portValue = SafeLoadParent60(a.parentComp); // <-- was __try
-                    }
-                    if (!a.owner || !a.portValue)
-                    {
-                        spdlog::warn("[INJECT] Anchor incomplete for sig=0x{:016X} (owner={} val={}).",
-                                     sig, a.owner, a.portValue);
-                        return;
-                    }
 
-                    // Craft node
+                    void* live = ReadField60(a.parentComp);
+                    // Prefer the remembered portVal only if the field address still matches and the remembered value is non-null
+                    void* port = (Field60Addr(a.parentComp) == a.portField && a.portVal) ? a.portVal : live;
+                    if (!port) { spdlog::warn("[INJECT] Live port is null."); break; }
+
                     void* node = nullptr;
                     {
                         void* cc = g_lastTextCreationCtx.load(std::memory_order_relaxed);
@@ -604,84 +580,107 @@ namespace IHHook
                     if (!node)
                     {
                         spdlog::warn("[INJECT] NewUiModelText failed.");
-                        return;
+                        break;
                     }
 
                     RememberOurNode(node);
-                    void* handle = NodeConnectShim(a.owner, a.parentComp, const_cast<void*>(a.portValue), node);
-                    spdlog::info("[INJECT] NodeConnectShim -> handle={}", handle);
-                    if (auto** pp = GetGlobalUixUtility()) if (void* uix = *pp) UpdateTextForNode(uix, node);
+                    bool connected = false;
 
-                    // Persist back any upgrades
-                    {
-                        std::lock_guard<std::mutex> _l(g_mx);
-                        Anchor& dst = g_anchorBySig[sig];
-                        if (!dst.owner) dst.owner = a.owner;
-                        if (!dst.portField)dst.portField = a.portField;
-                        if (!dst.portValue)dst.portValue = a.portValue;
-                        if (!dst.parentComp) dst.parentComp = a.parentComp;
+                    // 1) Utility route (build component + connect by port SID if we learned one)
+                    if (!connected) {
+                        auto it = g_lastPortSidBySig.find(sig);
+                        if (it != g_lastPortSidBySig.end()) {
+                            spdlog::info("[INJECT] Using ConnectLayoutUtilityComponent with sidPort=#{:08X}", it->second);
+                            ConnectLayoutUtilityComponent(/*childComp=*/node, /*parentComp=*/a.parentComp, /*portSid=*/it->second);
+                            connected = true;
+                        }
                     }
+
+                    // 2) Fallback: your existing port-value/port-field attempt via NodeConnectShim
+                    if (!connected) {
+                        spdlog::info("[INJECT] Falling back to NodeConnectShim.");
+                        NodeConnectShim(a.owner, a.parentComp, port, node);
+                        connected = true;
+                    }
+
+                    // After connecting, *ensure* it draws something:
+                    if (auto** pp = GetGlobalUixUtility()) {
+                        void* uix = *pp;
+                        bool vis = IsNodeVisible(uix, node);
+                        spdlog::info("[INJECT] post-connect IsNodeVisible(uix,node)={}", vis);
+                    }
+
+                    if (auto** pp = GetGlobalUixUtility())
+                        if (void* uix = *pp)
+                        {
+                            SetNodeVisibility(node, true);
+                            SetModelNodePriority(uix, node, 240);
+                            SetModelNodeTextFontSize(uix, node, 28.0f, 0.0f);
+                            SetModelNodeTextColorRGB(uix, node, 1.0f, 1.0f, 1.0f);
+                            UpdateTextForNode(uix, node);
+                        }
                 }
+                while (false);
             }
 
             if (just(VK_F8))
             {
                 spdlog::info("[HK] F8 -> dump status");
+
+                const uint64_t sig = PickActiveTargetSig();
+                spdlog::info("[INJECT] active target sig=0x{:016X}", sig);
+
+
+                // Layouts + sigs
                 {
                     std::lock_guard<std::mutex> _l(g_mx);
                     spdlog::info("[DUMP] ===== Layouts (sig64) =====");
                     for (auto& kv : g_sigByLayout)
                     {
-                        const bool target = g_targetLayoutSigs.count(kv.second) != 0;
+                        const bool target = g_targetKnownLayoutSids.count(kv.second) != 0;
                         spdlog::info("[DUMP] layout={} sig64=0x{:016X}{}", kv.first, kv.second,
                                      target ? "  <TARGET>" : "");
                     }
                     spdlog::info("[DUMP] ===== Current per-layout sig =====");
                     for (auto& kv : g_currentSigByLayout)
                     {
-                        const bool target = g_targetLayoutSigs.count(kv.second) != 0;
+                        const bool target = g_targetKnownLayoutSids.count(kv.second) != 0;
                         spdlog::info("[DUMP] layout={} currentSig=0x{:016X}{}", kv.first, kv.second,
                                      target ? "  <TARGET>" : "");
                     }
                     spdlog::info("[DUMP] ===== Anchors by sig =====");
                     for (auto& kv : g_anchorBySig)
                     {
-                        const bool target = g_targetLayoutSigs.count(kv.first) != 0;
+                        const bool target = g_targetKnownLayoutSids.count(kv.first) != 0;
+                        const Anchor& a = kv.second;
                         spdlog::info("[DUMP] sig64=0x{:016X} owner={} parent={} field={} val={}{}",
-                                     kv.first, kv.second.owner, kv.second.parentComp,
-                                     kv.second.portField, kv.second.portValue,
+                                     kv.first, a.owner, a.parentComp, a.portField, a.portVal,
                                      target ? "  <TARGET>" : "");
                     }
-                }
-                // Tiny "view" for any active target: list first 48 nodes’ re-based vtbls
-                uint64_t sig = PickActiveTargetSig();
-                if (sig)
-                {
-                    void* layout = nullptr;
-                    void* model = nullptr;
+                    spdlog::info("[DUMP] ===== Anchors by layout =====");
+                    for (auto& kv : g_anchorForLayout)
                     {
-                        std::lock_guard<std::mutex> _l(g_mx);
-                        for (auto& kv : g_sigByLayout) if (kv.second == sig)
-                        {
-                            layout = kv.first;
-                            break;
-                        }
-                        if (layout) model = g_primaryModelByLayout[layout];
+                        const void* layout = kv.first;
+                        const uint64_t sig = g_sigByLayout.count((void*)layout) ? g_sigByLayout[(void*)layout] : 0;
+                        const bool target = g_targetKnownLayoutSids.count(sig) != 0;
+                        const Anchor& a = kv.second;
+                        spdlog::info("[DUMP] layout={} sig64=0x{:016X} owner={} parent={} field={} val={}{}",
+                                     layout, sig, a.owner, a.parentComp, a.portField, a.portVal,
+                                     target ? "  <TARGET LAYOUT>" : "");
                     }
-                    if (model)
-                    {
-                        spdlog::info("[VIEW] layout={} model={} sig64=0x{:016X}", layout, model, sig);
-                        for (int i = 0; i < 48; i++)
-                        {
-                            void* n = GetModelNodeFromIndex(model, i);
-                            if (!n) break;
-                            void** vtbl = *reinterpret_cast<void***>(n);
-                            spdlog::info("[VIEW]  idx={:02d} node={} vtbl.rebased=0x{:016X}", i, n, RebasedPtr(vtbl));
+                    if (!g_ourInjects.empty()) {
+                        if (auto** pp = GetGlobalUixUtility()) if (void* uix = *pp) {
+                            spdlog::info("[DUMP] ===== Our injected nodes =====");
+                            for (void* n : g_ourInjects) {
+                                bool vis = IsNodeVisible(uix, n);
+                                spdlog::info("[DUMP] node={} visible={}", n, vis);
+                            }
                         }
                     }
                 }
             }
         }
+
 
         // -----------------------------------------------------------------------------
         // Install
