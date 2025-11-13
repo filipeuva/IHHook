@@ -14,170 +14,185 @@
 #include "lua/lua.h"
 #include "lua/lauxlib.h"
 
-typedef ulonglong (__fastcall StrCode64Func)(const char * buf, longlong len);
-typedef ulonglong (__fastcall PathCode64Func)(const char * strToHash);
-typedef uint (__fastcall FNVHash32Func)(const char * strToHash);
-typedef ulonglong * (__fastcall GetFreeRoamLangIdFunc)(ulonglong * langId, short locationCode, short missionCode);
+typedef ulonglong (__fastcall StrCode64Func)(const char* buf, longlong len);
+typedef ulonglong (__fastcall PathCode64Func)(const char* strToHash);
+typedef uint (__fastcall FNVHash32Func)(const char* strToHash);
+typedef ulonglong* (__fastcall GetFreeRoamLangIdFunc)(ulonglong* langId, short locationCode, short missionCode);
 typedef void (__fastcall UpdateFOVLerpFunc)(ulonglong param_1);
-typedef void (__fastcall UnkPrintFuncStubbedOutFunc)(const char * fmt, ...);
+typedef void (__fastcall UnkPrintFuncStubbedOutFunc)(const char* fmt, ...);
 // l_StubbedOut EXPORT_FUNC_FALSE
 // nullsub_2 EXPORT_FUNC_FALSE
 typedef void (__fastcall LoadFileSubFunc)(ulonglong filePath64, ulonglong filePath64_01);
-typedef ulonglong * (__fastcall LoadFileFunc)(ulonglong * fileSlotIndex, ulonglong filePath64);
-typedef ulonglong * (__fastcall LoadFile_01Func)(ulonglong * param_1, ulonglong * param_2);
-typedef void (__fastcall LoadFile_02Func)(uint64_t * pathCode64HashPtr);
-typedef ulonglong * (__fastcall LoadFile_03Func)();
-typedef ulonglong * (__fastcall LoadFile_05Func)(ulonglong * param_1, ulonglong * param_2);
-typedef ulonglong * (__fastcall LoadPlayerPartsFpkFunc)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType);
-typedef ulonglong * (__fastcall LoadPlayerPartsPartsFunc)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType);
-typedef ulonglong * (__fastcall LoadPlayerCamoFpkFunc)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType, uint playerCamoType);
-typedef ulonglong * (__fastcall LoadPlayerCamoFv2Func)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType, uint playerCamoType);
-typedef ulonglong * (__fastcall LoadPlayerFacialMotionFpkFunc)(ulonglong * fileSlotIndex, uint playerType);
-typedef ulonglong * (__fastcall LoadPlayerFacialMotionMtarFunc)(ulonglong * fileSlotIndex, int playerType);
-typedef ulonglong * (__fastcall LoadPlayerBionicArmFpkFunc)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType, uint playerHandType);
-typedef ulonglong * (__fastcall LoadPlayerBionicArmFv2Func)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType, uint playerHandType);
+typedef ulonglong* (__fastcall LoadFileFunc)(ulonglong* fileSlotIndex, ulonglong filePath64);
+typedef ulonglong* (__fastcall LoadFile_01Func)(ulonglong* param_1, ulonglong* param_2);
+typedef void (__fastcall LoadFile_02Func)(uint64_t* pathCode64HashPtr);
+typedef ulonglong* (__fastcall LoadFile_03Func)();
+typedef ulonglong* (__fastcall LoadFile_05Func)(ulonglong* param_1, ulonglong* param_2);
+typedef ulonglong* (__fastcall LoadPlayerPartsFpkFunc)(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType);
+typedef ulonglong* (__fastcall LoadPlayerPartsPartsFunc)(ulonglong* fileSlotIndex, uint playerType,
+                                                         uint playerPartsType);
+typedef ulonglong* (__fastcall LoadPlayerCamoFpkFunc)(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType,
+                                                      uint playerCamoType);
+typedef ulonglong* (__fastcall LoadPlayerCamoFv2Func)(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType,
+                                                      uint playerCamoType);
+typedef ulonglong* (__fastcall LoadPlayerFacialMotionFpkFunc)(ulonglong* fileSlotIndex, uint playerType);
+typedef ulonglong* (__fastcall LoadPlayerFacialMotionMtarFunc)(ulonglong* fileSlotIndex, int playerType);
+typedef ulonglong* (__fastcall LoadPlayerBionicArmFpkFunc)(ulonglong* fileSlotIndex, uint playerType,
+                                                           uint playerPartsType, uint playerHandType);
+typedef ulonglong* (__fastcall LoadPlayerBionicArmFv2Func)(ulonglong* fileSlotIndex, uint playerType,
+                                                           uint playerPartsType, uint playerHandType);
 typedef bool (__fastcall CheckPlayerPartsIfShouldApplySkinToneFv2Func)(uint playerType, uint playerPartsType);
-typedef ulonglong * (__fastcall LoadPlayerPartsSkinToneFv2Func)(ulonglong * loadFile, uint playerType, uint playerPartsType);
+typedef ulonglong* (__fastcall LoadPlayerPartsSkinToneFv2Func)(ulonglong* loadFile, uint playerType,
+                                                               uint playerPartsType);
 typedef bool (__fastcall IsHeadNeededForPartsTypeFunc)(uint playerPartsType);
 typedef bool (__fastcall IsHeadNeededForPartsTypeAndAvatarFunc)(uint playerPartsType);
-typedef ulonglong * (__fastcall LoadPlayerSnakeFaceFpkFunc)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType, uint playerFaceId, char playerFaceEquipId);
-typedef ulonglong * (__fastcall LoadPlayerSnakeFaceFv2Func)(ulonglong * fileSlotIndex, uint playerType, uint playerPartsType, uint playerFaceId, char playerFaceEquipId);
-typedef ulonglong * (__fastcall LoadAvatarOgreHornFpkFunc)(ulonglong * fileSlotIndex, uint ogreLevel);
-typedef ulonglong * (__fastcall LoadAvatarOgreHornFv2Func)(ulonglong * fileSlotIndex, uint ogreLevel);
-typedef ulonglong * (__fastcall LoadBuddyMainFileFunc)(ulonglong param_1, ulonglong * fileSlotIndex, uint buddyType, ulonglong param_4);
-typedef ulonglong * (__fastcall LoadBuddyQuietWeaponFpkFunc)(ulonglong param_1, ulonglong * fileSlotIndex, short param_quietWeaponId);
-typedef ulonglong * (__fastcall LoadBuddyWalkerGearArmFpkFunc)(ulonglong param_1, ulonglong * fileSlotIndex, ulonglong param_3, ulonglong param_4);
-typedef ulonglong * (__fastcall LoadBuddyWalkerGearHeadFpkFunc)(ulonglong param_1, ulonglong * fileSlotIndex, ulonglong param_3, ulonglong param_4);
-typedef ulonglong * (__fastcall LoadBuddyWalkerGearWeaponFpkFunc)(ulonglong param_1, ulonglong * fileSlotIndex, ulonglong param_3, ulonglong param_4);
-typedef int * (__fastcall LoadDefaultFpksFuncFunc)(void * param_1, int * param_2, ulonglong * param_3, uint param_4);
+typedef ulonglong* (__fastcall LoadPlayerSnakeFaceFpkFunc)(ulonglong* fileSlotIndex, uint playerType,
+                                                           uint playerPartsType, uint playerFaceId,
+                                                           char playerFaceEquipId);
+typedef ulonglong* (__fastcall LoadPlayerSnakeFaceFv2Func)(ulonglong* fileSlotIndex, uint playerType,
+                                                           uint playerPartsType, uint playerFaceId,
+                                                           char playerFaceEquipId);
+typedef ulonglong* (__fastcall LoadAvatarOgreHornFpkFunc)(ulonglong* fileSlotIndex, uint ogreLevel);
+typedef ulonglong* (__fastcall LoadAvatarOgreHornFv2Func)(ulonglong* fileSlotIndex, uint ogreLevel);
+typedef ulonglong* (__fastcall LoadBuddyMainFileFunc)(ulonglong param_1, ulonglong* fileSlotIndex, uint buddyType,
+                                                      ulonglong param_4);
+typedef ulonglong* (__fastcall LoadBuddyQuietWeaponFpkFunc)(ulonglong param_1, ulonglong* fileSlotIndex,
+                                                            short param_quietWeaponId);
+typedef ulonglong* (__fastcall LoadBuddyWalkerGearArmFpkFunc)(ulonglong param_1, ulonglong* fileSlotIndex,
+                                                              ulonglong param_3, ulonglong param_4);
+typedef ulonglong* (__fastcall LoadBuddyWalkerGearHeadFpkFunc)(ulonglong param_1, ulonglong* fileSlotIndex,
+                                                               ulonglong param_3, ulonglong param_4);
+typedef ulonglong* (__fastcall LoadBuddyWalkerGearWeaponFpkFunc)(
+    ulonglong param_1, ulonglong* fileSlotIndex, ulonglong param_3, ulonglong param_4);
+typedef int* (__fastcall LoadDefaultFpksFuncFunc)(void* param_1, int* param_2, ulonglong* param_3, uint param_4);
 typedef char (__fastcall PreparePlayerVehicleInSortieFunc)(longlong param_1);
 typedef char (__fastcall PreparePlayerVehicleInGameFunc)(longlong param_1, ulonglong param_2);
 typedef longlong (__fastcall LoadDefaultFpkPtrFuncFunc)(longlong param_1, uint param_2);
-typedef ulonglong * (__fastcall LoadAllVehicleCamoFpksFunc)();
-typedef fox::String * (__fastcall CreateInPlaceFunc)(fox::String * outFoxString, const char * cString);
-typedef lua_State * (__fastcall lua_newstateFunc)(lua_Alloc f, void * ud);
-typedef void (__fastcall lua_closeFunc)(lua_State * L);
-typedef lua_State * (__fastcall lua_newthreadFunc)(lua_State * L);
-typedef lua_CFunction (__fastcall lua_atpanicFunc)(lua_State * L, lua_CFunction panicf);
+typedef ulonglong* (__fastcall LoadAllVehicleCamoFpksFunc)();
+typedef fox::String* (__fastcall CreateInPlaceFunc)(fox::String* outFoxString, const char* cString);
+typedef lua_State* (__fastcall lua_newstateFunc)(lua_Alloc f, void* ud);
+typedef void (__fastcall lua_closeFunc)(lua_State* L);
+typedef lua_State* (__fastcall lua_newthreadFunc)(lua_State* L);
+typedef lua_CFunction (__fastcall lua_atpanicFunc)(lua_State* L, lua_CFunction panicf);
 // lua_gettop USING_CODE
-typedef void (__fastcall lua_settopFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_pushvalueFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_removeFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_insertFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_replaceFunc)(lua_State * L, int idx);
-typedef int (__fastcall lua_checkstackFunc)(lua_State * L, int sz);
-typedef void (__fastcall lua_xmoveFunc)(lua_State * from, lua_State * to, int n);
-typedef int (__fastcall lua_isnumberFunc)(lua_State * L, int idx);
-typedef int (__fastcall lua_isstringFunc)(lua_State * L, int idx);
-typedef int (__fastcall lua_iscfunctionFunc)(lua_State * L, int idx);
+typedef void (__fastcall lua_settopFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_pushvalueFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_removeFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_insertFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_replaceFunc)(lua_State* L, int idx);
+typedef int (__fastcall lua_checkstackFunc)(lua_State* L, int sz);
+typedef void (__fastcall lua_xmoveFunc)(lua_State* from, lua_State* to, int n);
+typedef int (__fastcall lua_isnumberFunc)(lua_State* L, int idx);
+typedef int (__fastcall lua_isstringFunc)(lua_State* L, int idx);
+typedef int (__fastcall lua_iscfunctionFunc)(lua_State* L, int idx);
 // lua_isuserdata USING_CODE
-typedef int (__fastcall lua_typeFunc)(lua_State * L, int idx);
+typedef int (__fastcall lua_typeFunc)(lua_State* L, int idx);
 // lua_typename USING_CODE
 // lua_equal NOT_FOUND
-typedef int (__fastcall lua_rawequalFunc)(lua_State * L, int idx1, int idx2);
-typedef int (__fastcall lua_lessthanFunc)(lua_State * L, int idx1, int idx2);
-typedef lua_Number (__fastcall lua_tonumberFunc)(lua_State * L, int idx);
-typedef lua_Integer (__fastcall lua_tointegerFunc)(lua_State * L, int idx);
-typedef int (__fastcall lua_tobooleanFunc)(lua_State * L, int idx);
-typedef char * (__fastcall lua_tolstringFunc)(lua_State * L, int idx, size_t * len);
-typedef size_t (__fastcall lua_objlenFunc)(lua_State * L, int idx);
-typedef lua_CFunction (__fastcall lua_tocfunctionFunc)(lua_State * L, int idx);
-typedef void * (__fastcall lua_touserdataFunc)(lua_State * L, int idx);
-typedef lua_State * (__fastcall lua_tothreadFunc)(lua_State * L, int idx);
-typedef void * (__fastcall lua_topointerFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_pushnilFunc)(lua_State * L);
-typedef void (__fastcall lua_pushnumberFunc)(lua_State * L, lua_Number n);
-typedef void (__fastcall lua_pushintegerFunc)(lua_State * L, lua_Integer n);
-typedef void (__fastcall lua_pushlstringFunc)(lua_State * L, const char * s, size_t l);
-typedef void (__fastcall lua_pushstringFunc)(lua_State * L, const char * s);
-typedef char * (__fastcall lua_pushvfstringFunc)(lua_State * L, const char * fmt, void * argp);
-typedef char * (__fastcall lua_pushfstringFunc)(lua_State * L, const char * fmt, ...);
-typedef void (__fastcall lua_pushcclosureFunc)(lua_State * L, lua_CFunction fn, int n);
-typedef void (__fastcall lua_pushbooleanFunc)(lua_State * L, int b);
-typedef void (__fastcall lua_pushlightuserdataFunc)(lua_State * L, void * p);
-typedef int (__fastcall lua_pushthreadFunc)(lua_State * L);
-typedef void (__fastcall lua_gettableFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_getfieldFunc)(lua_State * L, int idx, const char * k);
-typedef void (__fastcall lua_rawgetFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_rawgetiFunc)(lua_State * L, int idx, int n);
-typedef void (__fastcall lua_createtableFunc)(lua_State * L, int narr, int nrec);
-typedef void * (__fastcall lua_newuserdataFunc)(lua_State * L, size_t sz);
-typedef int (__fastcall lua_getmetatableFunc)(lua_State * L, int objindex);
-typedef void (__fastcall lua_getfenvFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_settableFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_setfieldFunc)(lua_State * L, int idx, const char * k);
-typedef void (__fastcall lua_rawsetFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_rawsetiFunc)(lua_State * L, int idx, int n);
-typedef int (__fastcall lua_setmetatableFunc)(lua_State * L, int objindex);
-typedef int (__fastcall lua_setfenvFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_callFunc)(lua_State * L, int nargs, int nresults);
-typedef int (__fastcall lua_pcallFunc)(lua_State * L, int nargs, int nresults, int errfunc);
-typedef int (__fastcall lua_cpcallFunc)(lua_State * L, lua_CFunction func, void * ud);
-typedef int (__fastcall lua_loadFunc)(lua_State * L, lua_Reader reader, void * dt, const char * chunkname);
-typedef int (__fastcall lua_dumpFunc)(lua_State * L, lua_Writer writer, void * data);
+typedef int (__fastcall lua_rawequalFunc)(lua_State* L, int idx1, int idx2);
+typedef int (__fastcall lua_lessthanFunc)(lua_State* L, int idx1, int idx2);
+typedef lua_Number (__fastcall lua_tonumberFunc)(lua_State* L, int idx);
+typedef lua_Integer (__fastcall lua_tointegerFunc)(lua_State* L, int idx);
+typedef int (__fastcall lua_tobooleanFunc)(lua_State* L, int idx);
+typedef char* (__fastcall lua_tolstringFunc)(lua_State* L, int idx, size_t* len);
+typedef size_t (__fastcall lua_objlenFunc)(lua_State* L, int idx);
+typedef lua_CFunction (__fastcall lua_tocfunctionFunc)(lua_State* L, int idx);
+typedef void* (__fastcall lua_touserdataFunc)(lua_State* L, int idx);
+typedef lua_State* (__fastcall lua_tothreadFunc)(lua_State* L, int idx);
+typedef void* (__fastcall lua_topointerFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_pushnilFunc)(lua_State* L);
+typedef void (__fastcall lua_pushnumberFunc)(lua_State* L, lua_Number n);
+typedef void (__fastcall lua_pushintegerFunc)(lua_State* L, lua_Integer n);
+typedef void (__fastcall lua_pushlstringFunc)(lua_State* L, const char* s, size_t l);
+typedef void (__fastcall lua_pushstringFunc)(lua_State* L, const char* s);
+typedef char* (__fastcall lua_pushvfstringFunc)(lua_State* L, const char* fmt, void* argp);
+typedef char* (__fastcall lua_pushfstringFunc)(lua_State* L, const char* fmt, ...);
+typedef void (__fastcall lua_pushcclosureFunc)(lua_State* L, lua_CFunction fn, int n);
+typedef void (__fastcall lua_pushbooleanFunc)(lua_State* L, int b);
+typedef void (__fastcall lua_pushlightuserdataFunc)(lua_State* L, void* p);
+typedef int (__fastcall lua_pushthreadFunc)(lua_State* L);
+typedef void (__fastcall lua_gettableFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_getfieldFunc)(lua_State* L, int idx, const char* k);
+typedef void (__fastcall lua_rawgetFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_rawgetiFunc)(lua_State* L, int idx, int n);
+typedef void (__fastcall lua_createtableFunc)(lua_State* L, int narr, int nrec);
+typedef void* (__fastcall lua_newuserdataFunc)(lua_State* L, size_t sz);
+typedef int (__fastcall lua_getmetatableFunc)(lua_State* L, int objindex);
+typedef void (__fastcall lua_getfenvFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_settableFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_setfieldFunc)(lua_State* L, int idx, const char* k);
+typedef void (__fastcall lua_rawsetFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_rawsetiFunc)(lua_State* L, int idx, int n);
+typedef int (__fastcall lua_setmetatableFunc)(lua_State* L, int objindex);
+typedef int (__fastcall lua_setfenvFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_callFunc)(lua_State* L, int nargs, int nresults);
+typedef int (__fastcall lua_pcallFunc)(lua_State* L, int nargs, int nresults, int errfunc);
+typedef int (__fastcall lua_cpcallFunc)(lua_State* L, lua_CFunction func, void* ud);
+typedef int (__fastcall lua_loadFunc)(lua_State* L, lua_Reader reader, void* dt, const char* chunkname);
+typedef int (__fastcall lua_dumpFunc)(lua_State* L, lua_Writer writer, void* data);
 // lua_yield USING_CODE
-typedef int (__fastcall lua_resumeFunc)(lua_State * L, int narg);
+typedef int (__fastcall lua_resumeFunc)(lua_State* L, int narg);
 // lua_status USING_CODE
-typedef int (__fastcall lua_gcFunc)(lua_State * L, int what, int data);
-typedef int (__fastcall lua_errorFunc)(lua_State * L);
-typedef int (__fastcall lua_nextFunc)(lua_State * L, int idx);
-typedef void (__fastcall lua_concatFunc)(lua_State * L, int n);
+typedef int (__fastcall lua_gcFunc)(lua_State* L, int what, int data);
+typedef int (__fastcall lua_errorFunc)(lua_State* L);
+typedef int (__fastcall lua_nextFunc)(lua_State* L, int idx);
+typedef void (__fastcall lua_concatFunc)(lua_State* L, int n);
 // lua_getallocf NO_USE
 // lua_setallocf NO_USE
 // lua_setlevel NO_USE
-typedef int (__fastcall lua_getstackFunc)(lua_State * L, int level, lua_Debug * ar);
-typedef int (__fastcall lua_getinfoFunc)(lua_State * L, const char * what, lua_Debug * ar);
-typedef char * (__fastcall lua_getlocalFunc)(lua_State * L, lua_Debug * ar, int n);
-typedef char * (__fastcall lua_setlocalFunc)(lua_State * L, lua_Debug * ar, int n);
-typedef char * (__fastcall lua_getupvalueFunc)(lua_State * L, int funcindex, int n);
-typedef char * (__fastcall lua_setupvalueFunc)(lua_State * L, int funcindex, int n);
-typedef int (__fastcall lua_sethookFunc)(lua_State * L, lua_Hook func, int mask, int count);
+typedef int (__fastcall lua_getstackFunc)(lua_State* L, int level, lua_Debug* ar);
+typedef int (__fastcall lua_getinfoFunc)(lua_State* L, const char* what, lua_Debug* ar);
+typedef char* (__fastcall lua_getlocalFunc)(lua_State* L, lua_Debug* ar, int n);
+typedef char* (__fastcall lua_setlocalFunc)(lua_State* L, lua_Debug* ar, int n);
+typedef char* (__fastcall lua_getupvalueFunc)(lua_State* L, int funcindex, int n);
+typedef char* (__fastcall lua_setupvalueFunc)(lua_State* L, int funcindex, int n);
+typedef int (__fastcall lua_sethookFunc)(lua_State* L, lua_Hook func, int mask, int count);
 // lua_gethook USING_CODE
 // lua_gethookmask USING_CODE
 // lua_gethookcount USING_CODE
-typedef void (__fastcall luaI_openlibFunc)(lua_State * L, const char * libName, const luaL_Reg * l, int nup);
+typedef void (__fastcall luaI_openlibFunc)(lua_State* L, const char* libName, const luaL_Reg* l, int nup);
 // luaL_register USING_CODE
-typedef int (__fastcall luaL_getmetafieldFunc)(lua_State * L, int obj, const char * e);
-typedef int (__fastcall luaL_callmetaFunc)(lua_State * L, int obj, const char * e);
-typedef int (__fastcall luaL_typerrorFunc)(lua_State * L, int narg, const char * tname);
-typedef int (__fastcall luaL_argerrorFunc)(lua_State * L, int numarg, const char * extramsg);
-typedef char * (__fastcall luaL_checklstringFunc)(lua_State * L, int numArg, size_t * l);
-typedef char * (__fastcall luaL_optlstringFunc)(lua_State * L, int numArg, const char * def, size_t * l);
-typedef lua_Number (__fastcall luaL_checknumberFunc)(lua_State * L, int numArg);
+typedef int (__fastcall luaL_getmetafieldFunc)(lua_State* L, int obj, const char* e);
+typedef int (__fastcall luaL_callmetaFunc)(lua_State* L, int obj, const char* e);
+typedef int (__fastcall luaL_typerrorFunc)(lua_State* L, int narg, const char* tname);
+typedef int (__fastcall luaL_argerrorFunc)(lua_State* L, int numarg, const char* extramsg);
+typedef char* (__fastcall luaL_checklstringFunc)(lua_State* L, int numArg, size_t* l);
+typedef char* (__fastcall luaL_optlstringFunc)(lua_State* L, int numArg, const char* def, size_t* l);
+typedef lua_Number (__fastcall luaL_checknumberFunc)(lua_State* L, int numArg);
 // luaL_optnumber USING_CODE
-typedef lua_Integer (__fastcall luaL_checkintegerFunc)(lua_State * L, int numArg);
-typedef lua_Integer (__fastcall luaL_optintegerFunc)(lua_State * L, int nArg, lua_Integer def);
-typedef void (__fastcall luaL_checkstackFunc)(lua_State * L, int sz, const char * msg);
-typedef void (__fastcall luaL_checktypeFunc)(lua_State * L, int narg, int t);
-typedef void (__fastcall luaL_checkanyFunc)(lua_State * L, int narg);
-typedef int (__fastcall luaL_newmetatableFunc)(lua_State * L, const char * tname);
-typedef void * (__fastcall luaL_checkudataFunc)(lua_State * L, int ud, const char * tname);
-typedef void (__fastcall luaL_whereFunc)(lua_State * L, int lvl);
-typedef int (__fastcall luaL_errorFunc)(lua_State * L, const char * fmt, ...);
-typedef int (__fastcall luaL_checkoptionFunc)(lua_State * L, int narg, const char * def, char * * lst);
+typedef lua_Integer (__fastcall luaL_checkintegerFunc)(lua_State* L, int numArg);
+typedef lua_Integer (__fastcall luaL_optintegerFunc)(lua_State* L, int nArg, lua_Integer def);
+typedef void (__fastcall luaL_checkstackFunc)(lua_State* L, int sz, const char* msg);
+typedef void (__fastcall luaL_checktypeFunc)(lua_State* L, int narg, int t);
+typedef void (__fastcall luaL_checkanyFunc)(lua_State* L, int narg);
+typedef int (__fastcall luaL_newmetatableFunc)(lua_State* L, const char* tname);
+typedef void* (__fastcall luaL_checkudataFunc)(lua_State* L, int ud, const char* tname);
+typedef void (__fastcall luaL_whereFunc)(lua_State* L, int lvl);
+typedef int (__fastcall luaL_errorFunc)(lua_State* L, const char* fmt, ...);
+typedef int (__fastcall luaL_checkoptionFunc)(lua_State* L, int narg, const char* def, char* * lst);
 // luaL_ref USING_CODE
 // luaL_unref USING_CODE
-typedef int (__fastcall luaL_loadfileFunc)(lua_State * L, const char * filename);
-typedef int (__fastcall luaL_loadbufferFunc)(lua_State * L, const char * buff, size_t sz, const char * name);
+typedef int (__fastcall luaL_loadfileFunc)(lua_State* L, const char* filename);
+typedef int (__fastcall luaL_loadbufferFunc)(lua_State* L, const char* buff, size_t sz, const char* name);
 // luaL_loadstring USING_CODE
-typedef lua_State * (__fastcall luaL_newstateFunc)();
-typedef char * (__fastcall luaL_gsubFunc)(lua_State * L, const char * s, const char * p, const char * r);
-typedef char * (__fastcall luaL_findtableFunc)(lua_State * L, int idx, const char * fname, int szhint);
+typedef lua_State* (__fastcall luaL_newstateFunc)();
+typedef char* (__fastcall luaL_gsubFunc)(lua_State* L, const char* s, const char* p, const char* r);
+typedef char* (__fastcall luaL_findtableFunc)(lua_State* L, int idx, const char* fname, int szhint);
 // luaL_buffinit USING_CODE
-typedef char * (__fastcall luaL_prepbufferFunc)(luaL_Buffer * B);
-typedef void (__fastcall luaL_addlstringFunc)(luaL_Buffer * B, const char * s, size_t l);
+typedef char* (__fastcall luaL_prepbufferFunc)(luaL_Buffer* B);
+typedef void (__fastcall luaL_addlstringFunc)(luaL_Buffer* B, const char* s, size_t l);
 // luaL_addstring USING_CODE
-typedef void (__fastcall luaL_addvalueFunc)(luaL_Buffer * B);
-typedef void (__fastcall luaL_pushresultFunc)(luaL_Buffer * B);
-typedef int (__fastcall luaopen_baseFunc)(lua_State * L);
-typedef int (__fastcall luaopen_tableFunc)(lua_State * L);
-typedef int (__fastcall luaopen_ioFunc)(lua_State * L);
-typedef int (__fastcall luaopen_osFunc)(lua_State * L);
-typedef int (__fastcall luaopen_stringFunc)(lua_State * L);
-typedef int (__fastcall luaopen_mathFunc)(lua_State * L);
-typedef int (__fastcall luaopen_debugFunc)(lua_State * L);
-typedef int (__fastcall luaopen_packageFunc)(lua_State * L);
-typedef void (__fastcall luaL_openlibsFunc)(lua_State * L);
+typedef void (__fastcall luaL_addvalueFunc)(luaL_Buffer* B);
+typedef void (__fastcall luaL_pushresultFunc)(luaL_Buffer* B);
+typedef int (__fastcall luaopen_baseFunc)(lua_State* L);
+typedef int (__fastcall luaopen_tableFunc)(lua_State* L);
+typedef int (__fastcall luaopen_ioFunc)(lua_State* L);
+typedef int (__fastcall luaopen_osFunc)(lua_State* L);
+typedef int (__fastcall luaopen_stringFunc)(lua_State* L);
+typedef int (__fastcall luaopen_mathFunc)(lua_State* L);
+typedef int (__fastcall luaopen_debugFunc)(lua_State* L);
+typedef int (__fastcall luaopen_packageFunc)(lua_State* L);
+typedef void (__fastcall luaL_openlibsFunc)(lua_State* L);
 
 //octocamo
 typedef void (__fastcall UpdatePlayerCamoFunc)(void* self);
@@ -186,8 +201,10 @@ typedef void (__fastcall ScopeZoomUiUpdateFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateSightFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateScopeLengthFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiSetHelpAssetFunc)(void* self, void* layoutA, void* layoutB);
-typedef void (__fastcall SetTextForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText, void* textUnit, const char* rawText, bool isLocalized);
-typedef void (__fastcall SetTextUnitsForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText, void* textUnit, uint64_t unitId);
+typedef void (__fastcall SetTextForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText, void* textUnit,
+                                                      const char* rawText, bool isLocalized);
+typedef void (__fastcall SetTextUnitsForModelNodeTextFunc)(void* selfUixUtilityImpl, void* modelNodeText,
+                                                           void* textUnit, uint64_t unitId);
 typedef bool (__fastcall SetTextUnitsFunc)(void* modelNodeText, void* textUnit, uint64_t unitId);
 typedef void (__fastcall ConnectLayoutComponentFunc)(void* childComp, void* parentComp, void* portPtr);
 typedef void (__fastcall SetLayoutParentComponentFunc)(void* child /*RCX*/, void* parent /*RDX*/);
@@ -201,16 +218,53 @@ typedef void (__fastcall UpdatePhaseUiFunc)(void* phase);
 typedef void (__fastcall SetNodeVisibilityWrapperFunc)(void* selfModel, void* node, bool visible);
 typedef bool (__fastcall IsNodeVisibleFunc)(void* anyMgr, void* node);
 typedef void* (__fastcall GetUixLayoutFunc)(void* manager, const void* windowIface, uint64_t layoutId);
-typedef void** (__fastcall GetGlobalUixUtilityFunc)();
+typedef void* (__fastcall GetGlobalUixUtilityFunc)();
 typedef void (__fastcall SetModelNodeTextColorRGBFunc)(void* uix, void* modelNode, float r, float g, float b);
 typedef void (__fastcall SetModelNodeTextDrawPriorityFunc)(void* uix, void* layout, uint8_t prio);
 typedef void (__fastcall SetModelNodePriorityFunc)(void* uix, void* modelNodeCommon, uint8_t prio);
 typedef void (__fastcall SetModelNodeTextFontSizeFunc)(void* uix, void* modelNodeText, float a, float b);
-typedef void (__fastcall SetModelNodeTextStatusFunc)(void* uix, void* text,  uint16_t flags);
+typedef void (__fastcall SetModelNodeTextStatusFunc)(void* uix, void* text, uint16_t flags);
 typedef void (__fastcall SetModelNodeTextTextAlignFunc)(void* uix, void* modelNodeText, uint8_t align);
 typedef void (__fastcall SetModelNodeTextVerticalAlignFunc)(void* uix, void* modelNodeText, uint8_t valign);
 typedef void* (__fastcall GetModelNodeCommonFunc)(void* selfModel);
 typedef void* (__fastcall GetModelNodeCommonInternalFunc)(void* selfModel, uint64_t stringId);
+typedef int (__fastcall CreateBoxTextFunc)(void* modelNodeText/* fox::ui::ModelNodeText*/,
+                                           void* textUnit/* fox::ui::TextUnit*/, uint32_t unitId/* usually 0 is fine*/,
+                                           char* text/* UTF-8 string*/, bool a/* see note below (wrap/metrics flag)*/,
+                                           bool b/* see note below (layout flag));*/);
+typedef void (__fastcall DeleteTextUnitFunc)(void* uixImpl, void* textUnit);
+typedef void* (__fastcall GetConnectModelFunc)(void* connection /*ModelNodeConnection**/,
+                                               void* outTransform /*=nullptr*/);
+
+typedef void (__fastcall SetModelNodeTextDisplayWidthFunc)(void* nodeText, float width);
+typedef void (__fastcall SetModelNodeTextDisplayHeightFunc)(void* nodeText, float height);
+typedef bool (__fastcall GetModelNodeWorldVisibilityFunc)(const void* node);
+typedef void (__fastcall SetModelNodeTextDisplayAreaWidthOffsetFunc)(void* nodeText, float addWidth, float addOffset);
+typedef void* (__fastcall GetTextUnitsInternalFunc)(void* fontMgr, int index);
+
+struct TextAreaPack
+{
+    float f0, f1, f2;
+    uint32_t padC;
+    void* chain;
+    uint8_t empty;
+};
+
+typedef void (__fastcall BuildTextAreaPackFunc)(/*RCX*/void* modelNodeText, /*RDX*/TextAreaPack* out);
+typedef int (__fastcall AttachTextAndFinalizeFunc)(void* owner, void* container, void* node, void* unitsCtx);
+typedef void (__fastcall ApplyTextAndMeasureFunc)(void* act, void* node, void* unitsCtx, void* fmtCtx);
+
+struct ActSetText
+{
+    // +0x18: uint32_t flags (this routine ORs 0x00010000 into it)
+    // +0x58: void*     styleDefaultsOrParams
+    // +0x88: ModelNodeText* node
+    // +0x90: void*     analysisDst  // passed to AnalysisText as RDX = &this->+0x90
+    // +0xA0: void*     textUnits    // fed back into SetTextUnits if style flag set
+};
+
+typedef void (__fastcall RunAnalysisFunc)(ActSetText* self);
+
 // struct UiModel
 // {
 //     void* vtbl; // +0x00
@@ -221,14 +275,21 @@ typedef void* (__fastcall GetModelNodeCommonInternalFunc)(void* selfModel, uint6
 //     uint32_t animCount; // +0xA0
 //     void** animFiles; // +0xA8
 // };
-typedef void* (__fastcall GetModelWrapperFunc)(void* thisLayout, void** outModel /*UixLayout**/, uint32_t wantRoot /*StrCode32*/);
-typedef void* (__fastcall CreateModelNodeFunc)(void* thisModel, void* modelFile, void* file, void* nodeHeader, uint64_t* StrCode32, uint64_t* param_5, uint32_t* param_6);
+typedef void* (__fastcall GetModelWrapperFunc)(void* thisLayout, void** outModel /*UixLayout**/,
+                                               uint32_t wantRoot /*StrCode32*/);
+typedef void* (__fastcall CreateModelNodeFunc)(void* thisModel, void* modelFile, void* file, void* nodeHeader,
+                                               uint64_t* StrCode32, uint64_t* param_5, uint32_t* param_6);
 typedef void* (__fastcall NewUiModelTextFunc)(uint32_t sceneStrCode32, void* creationCtx, void* opt0, void* opt1);
 typedef void* (__fastcall GetModelNodeFromIndexFunc)(const void* thisModel, int index);
 typedef const void* (__fastcall LoadCreationContextFunc)(const void* serializedBlob, void* outCtx);
 typedef void (__fastcall SetNodeVisibilityFunc)(void* node, bool visible);
-typedef void (__fastcall ReadNodeFunc)(void* thisPtr, void* file /*UiModelFileHeader**/, void* nodeHeader /*UiModelNodeHeader**/, uint32_t* strCode32s, uint64_t* outName);
-typedef void (__fastcall InitModelNodeTextFunc)(void* node /*UiModelText*|UiModelNode**/, void* modelFile /*UiModelFile* (blob base w/ string table)*/, void* fileHeader /*UiModelFileHeader**/, void* nodeHeader /*UiModelNodeHeader**/);
+typedef void (__fastcall ReadNodeFunc)(void* thisPtr, void* file /*UiModelFileHeader**/,
+                                       void* nodeHeader /*UiModelNodeHeader**/, uint32_t* strCode32s,
+                                       uint64_t* outName);
+typedef void (__fastcall InitModelNodeTextFunc)(void* node /*UiModelText*|UiModelNode**/,
+                                                void* modelFile /*UiModelFile* (blob base w/ string table)*/,
+                                                void* fileHeader /*UiModelFileHeader**/,
+                                                void* nodeHeader /*UiModelNodeHeader**/);
 typedef void* (__fastcall GetLayoutModelFunc)(void* thisLayout, uint32_t modelIndex);
 typedef void (__fastcall SetupModelFunc)(void* selfModel);
 typedef void* (__fastcall GetCommonNodeFunc)(void* selfModel);
@@ -236,7 +297,8 @@ typedef bool (__fastcall IsHaveModelNodeCommonFunc)(void* selfUixUtility, const 
 
 typedef void (__fastcall UpdateWindowGraphFunc)(void* selfWindow);
 typedef void (__fastcall AddChildWindowFunc)(void* selfWindow, void* childWindow);
-typedef void* (__fastcall CreateNewWindowFunc)(void* windowFunction /*WindowFunction* or service*/, const void* nameStr, uint32_t flagsA, uint32_t flagsB);
+typedef void* (__fastcall CreateNewWindowFunc)(void* windowFunction /*WindowFunction* or service*/, const void* nameStr,
+                                               uint32_t flagsA, uint32_t flagsB);
 typedef void* (__fastcall GetWindowManagerFunc)();
 typedef void* (__fastcall GetWindowLayoutFunc)(void* windowFunction, uint64_t layoutId);
 
@@ -245,12 +307,23 @@ typedef void (__fastcall RegisterWindowFactoryFunc)(void* collector, void* facto
 typedef void* (__fastcall GetWindowHandleFunc)(void* mgr, void* windowFunction);
 typedef void (__fastcall SetLayoutInfoFunc)(void* windowHandle, const void* layoutInfo);
 typedef void* (__fastcall GetTextUnitsFunc)(int index);
-typedef void (__fastcall SetTextUnitFunc)(void* selfTextUnit, char* text, uint32_t flags, uint16_t p3, uint16_t p4, float size, float tracking, uint32_t p7, uint32_t p8);
+typedef void (__fastcall SetTextUnitFunc)(void* selfTextUnit, char* text, uint32_t flags, uint16_t p3, uint16_t p4,
+                                          float size, float tracking, uint32_t p7, uint32_t p8);
 typedef void (__fastcall GraphUpdateFunc)(void* selfGraph);
 typedef void (__fastcall ConnectLayoutUtilityComponentFunc)(void* childComp, void* parentComp, uint32_t portSid);
-typedef void (__fastcall ConnectChildWindowToNodeFunc)(void* window, void* windowHandle, void* parentComp, void* portPtr);
+typedef void (__fastcall ConnectChildWindowToNodeFunc)(void* window, void* windowHandle, void* parentComp,
+                                                       void* portPtr);
 typedef void (__fastcall ConnectWindowToParentFunc)(void* windowFunction, void* parentComp, void* portPtr);
-typedef void (__fastcall LayoutConnectFunc)(void* uiUtil, void* windowIface, uint64_t sidA, uint64_t sidB, uint64_t sidModel, uint64_t sidPort);
+typedef void (__fastcall LayoutConnectFunc)(void* uiUtil, void* windowIface, uint64_t sidA, uint64_t sidB,
+                                            uint64_t sidModel, uint64_t sidPort);
+
+typedef void* (__fastcall WindowCreateFunc)(const void* rc/*fox::ui::WindowResourceCreator*/,
+                                           const void* name /*fox::String*/, uint32_t flags,
+                                           void* parent/*fox::ui::Window*/,
+                                           uint16_t zOrder,
+                                           uint32_t opt6,
+                                           uint32_t opt7);
+typedef void* (__fastcall GetLayoutComponentFunc)(void* self);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -480,3 +553,21 @@ extern ConnectLayoutUtilityComponentFunc* ConnectLayoutUtilityComponent;
 extern ConnectChildWindowToNodeFunc* ConnectChildWindowToNode;
 extern ConnectWindowToParentFunc* ConnectWindowToParent;
 extern LayoutConnectFunc* LayoutConnect;
+extern CreateBoxTextFunc* CreateBoxText;
+extern DeleteTextUnitFunc* DeleteTextUnit;
+extern GetConnectModelFunc* GetConnectModel;
+
+extern SetModelNodeTextDisplayWidthFunc* SetModelNodeTextDisplayWidth;
+extern SetModelNodeTextDisplayHeightFunc* SetModelNodeTextDisplayHeight;
+extern GetModelNodeWorldVisibilityFunc* GetModelNodeWorldVisibility;
+extern SetModelNodeTextDisplayAreaWidthOffsetFunc* SetModelNodeTextDisplayAreaWidthOffset;
+
+extern BuildTextAreaPackFunc* BuildTextAreaPack;
+extern AttachTextAndFinalizeFunc* AttachTextAndFinalize;
+extern ApplyTextAndMeasureFunc* ApplyTextAndMeasure;
+extern RunAnalysisFunc* RunAnalysis;
+
+extern WindowCreateFunc* WindowCreate;
+extern GetLayoutComponentFunc* GetLayoutComponent;
+
+extern GetTextUnitsInternalFunc* GetTextUnitsInternal;

@@ -237,3 +237,22 @@ ConnectLayoutUtilityComponentFunc* ConnectLayoutUtilityComponent;
 ConnectChildWindowToNodeFunc* ConnectChildWindowToNode;
 ConnectWindowToParentFunc* ConnectWindowToParent;
 LayoutConnectFunc* LayoutConnect;
+CreateBoxTextFunc* CreateBoxText;
+DeleteTextUnitFunc* DeleteTextUnit;
+
+GetConnectModelFunc* GetConnectModel;
+
+SetModelNodeTextDisplayWidthFunc* SetModelNodeTextDisplayWidth;
+SetModelNodeTextDisplayHeightFunc* SetModelNodeTextDisplayHeight;
+GetModelNodeWorldVisibilityFunc* GetModelNodeWorldVisibility;
+SetModelNodeTextDisplayAreaWidthOffsetFunc* SetModelNodeTextDisplayAreaWidthOffset;
+
+BuildTextAreaPackFunc* BuildTextAreaPack;
+AttachTextAndFinalizeFunc* AttachTextAndFinalize;
+ApplyTextAndMeasureFunc* ApplyTextAndMeasure;
+RunAnalysisFunc* RunAnalysis;
+
+WindowCreateFunc* WindowCreate;
+GetLayoutComponentFunc* GetLayoutComponent;
+
+GetTextUnitsInternalFunc* GetTextUnitsInternal;

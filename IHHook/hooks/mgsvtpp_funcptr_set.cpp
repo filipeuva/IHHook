@@ -235,5 +235,19 @@ namespace IHHook {
 		ConnectChildWindowToNode = (ConnectChildWindowToNodeFunc*)addressSet["ConnectChildWindowToNode"];
 		ConnectWindowToParent = (ConnectWindowToParentFunc*)addressSet["ConnectWindowToParent"];
 		LayoutConnect = (LayoutConnectFunc*)addressSet["LayoutConnect"];
+		CreateBoxText = (CreateBoxTextFunc*)addressSet["CreateBoxText"];
+		DeleteTextUnit = (DeleteTextUnitFunc*)addressSet["DeleteTextUnit"];
+		GetConnectModel = (GetConnectModelFunc*)addressSet["GetConnectModel"];
+		SetModelNodeTextDisplayWidth = (SetModelNodeTextDisplayWidthFunc*)addressSet["SetModelNodeTextDisplayWidth"];
+		SetModelNodeTextDisplayHeight = (SetModelNodeTextDisplayHeightFunc*)addressSet["SetModelNodeTextDisplayHeight"];
+		GetModelNodeWorldVisibility = (GetModelNodeWorldVisibilityFunc*)addressSet["GetModelNodeWorldVisibility"];
+		SetModelNodeTextDisplayAreaWidthOffset = (SetModelNodeTextDisplayAreaWidthOffsetFunc*)addressSet["SetModelNodeTextDisplayAreaWidthOffset"];
+		BuildTextAreaPack = (BuildTextAreaPackFunc*)addressSet["BuildTextAreaPack"];
+		AttachTextAndFinalize = (AttachTextAndFinalizeFunc*)addressSet["AttachTextAndFinalize"];
+		ApplyTextAndMeasure = (ApplyTextAndMeasureFunc*)addressSet["ApplyTextAndMeasure"];
+		RunAnalysis = (RunAnalysisFunc*)addressSet["RunAnalysis"];
+		WindowCreate = (WindowCreateFunc*)addressSet["WindowCreate"];
+		GetLayoutComponent = (GetLayoutComponentFunc*)addressSet["GetLayoutComponent"];
+		GetTextUnitsInternal = (GetTextUnitsInternalFunc*)addressSet["GetTextUnitsInternal"];
 	}//SetFuncPtrs
 }//namespace IHHook
