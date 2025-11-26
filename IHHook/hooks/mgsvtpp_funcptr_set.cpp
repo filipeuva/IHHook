@@ -212,7 +212,7 @@ namespace IHHook {
 		SetModelNodeTextColorRGB = (SetModelNodeTextColorRGBFunc*)addressSet["SetModelNodeTextColorRGB"];
 		SetModelNodeTextDrawPriority = (SetModelNodeTextDrawPriorityFunc*)addressSet["SetModelNodeTextDrawPriority"];
 		SetModelNodePriority = (SetModelNodePriorityFunc*)addressSet["SetModelNodePriority"];
-		SetModelNodeTextFontSize = (SetModelNodeTextFontSizeFunc*)addressSet["SetModelNodeTextFontSize"];
+		SetUixModelNodeTextFontSize = (SetUixModelNodeTextFontSizeFunc*)addressSet["SetUixModelNodeTextFontSize"];
 		SetModelNodeTextStatus = (SetModelNodeTextStatusFunc*)addressSet["SetModelNodeTextStatus"];
 		SetModelNodeTextTextAlign = (SetModelNodeTextTextAlignFunc*)addressSet["SetModelNodeTextTextAlign"];
 		SetModelNodeTextVerticalAlign = (SetModelNodeTextVerticalAlignFunc*)addressSet["SetModelNodeTextVerticalAlign"];
@@ -249,5 +249,21 @@ namespace IHHook {
 		WindowCreate = (WindowCreateFunc*)addressSet["WindowCreate"];
 		GetLayoutComponent = (GetLayoutComponentFunc*)addressSet["GetLayoutComponent"];
 		GetTextUnitsInternal = (GetTextUnitsInternalFunc*)addressSet["GetTextUnitsInternal"];
+		GetManagerText = (GetManagerTextFunc*)addressSet["GetManagerText"];
+		RegisterUiGraphNodeCtor = (RegisterUiGraphNodeCtorFunc*)addressSet["RegisterUiGraphNodeCtor"];
+		GetStringId = (GetStringIdFunc*)addressSet["GetStringId"];
+		CallHudMessage = (CallHudMessageFunc*)addressSet["CallHudMessage"];
+		CallHudMessageWithNumber = (CallHudMessageWithNumberFunc*)addressSet["CallHudMessageWithNumber"];
+		CallHudMessageWithReceiver = (CallHudMessageWithReceiverFunc*)addressSet["CallHudMessageWithReceiver"];
+		HudCommonCallHudMessage = (HudCommonCallHudMessageFunc*)addressSet["HudCommonCallHudMessage"];
+		InitializeHudUigDatas = (InitializeHudUigDatasFunc*)addressSet["InitializeHudUigDatas"];
+		AnnounceLogView = (AnnounceLogViewFunc*)addressSet["AnnounceLogView"];
+		SetTextForModelNodeTextInternal = (SetTextForModelNodeTextInternalFunc*)addressSet["SetTextForModelNodeTextInternal"];
+		SetLayoutActive = (SetLayoutActiveFunc*)addressSet["SetLayoutActive"];
+		SetUiModelNodeTranslate = (SetUiModelNodeTranslateFunc*)addressSet["SetUiModelNodeTranslate"];
+		SetModelNodeTextFontSize = (SetModelNodeTextFontSizeFunc*)addressSet["SetModelNodeTextFontSize"];
+		SetModelNodeTextFontSpace = (SetModelNodeTextFontSpaceFunc*)addressSet["SetModelNodeTextFontSpace"];
+		ResetModelNodeTextFontSize = (ResetModelNodeTextFontSizeFunc*)addressSet["ResetModelNodeTextFontSize"];
+		ResetModelNodeTextFontSpace = (ResetModelNodeTextFontSpaceFunc*)addressSet["ResetModelNodeTextFontSpace"];
 	}//SetFuncPtrs
 }//namespace IHHook

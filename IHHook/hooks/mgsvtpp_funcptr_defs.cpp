@@ -212,7 +212,7 @@ GetGlobalUixUtilityFunc* GetGlobalUixUtility;
 SetModelNodeTextColorRGBFunc* SetModelNodeTextColorRGB;
 SetModelNodeTextDrawPriorityFunc* SetModelNodeTextDrawPriority;
 SetModelNodePriorityFunc* SetModelNodePriority;
-SetModelNodeTextFontSizeFunc* SetModelNodeTextFontSize;
+SetUixModelNodeTextFontSizeFunc* SetUixModelNodeTextFontSize;
 SetModelNodeTextStatusFunc* SetModelNodeTextStatus;
 SetModelNodeTextTextAlignFunc* SetModelNodeTextTextAlign;
 SetModelNodeTextVerticalAlignFunc* SetModelNodeTextVerticalAlign;
@@ -256,3 +256,22 @@ WindowCreateFunc* WindowCreate;
 GetLayoutComponentFunc* GetLayoutComponent;
 
 GetTextUnitsInternalFunc* GetTextUnitsInternal;
+GetManagerTextFunc* GetManagerText;
+
+RegisterUiGraphNodeCtorFunc* RegisterUiGraphNodeCtor;
+GetStringIdFunc* GetStringId;
+
+CallHudMessageFunc* CallHudMessage;
+CallHudMessageWithNumberFunc* CallHudMessageWithNumber;
+CallHudMessageWithReceiverFunc* CallHudMessageWithReceiver;
+HudCommonCallHudMessageFunc* HudCommonCallHudMessage;
+InitializeHudUigDatasFunc* InitializeHudUigDatas;
+
+AnnounceLogViewFunc* AnnounceLogView;
+SetTextForModelNodeTextInternalFunc* SetTextForModelNodeTextInternal;
+SetLayoutActiveFunc* SetLayoutActive;
+SetUiModelNodeTranslateFunc* SetUiModelNodeTranslate;
+SetModelNodeTextFontSizeFunc* SetModelNodeTextFontSize;
+SetModelNodeTextFontSpaceFunc* SetModelNodeTextFontSpace;
+ResetModelNodeTextFontSizeFunc* ResetModelNodeTextFontSize;
+ResetModelNodeTextFontSpaceFunc* ResetModelNodeTextFontSpace;

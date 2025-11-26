@@ -13,8 +13,8 @@
 namespace IHHook {
 	namespace Hooks_Camo {
 
-		static std::atomic    gCamoScore{0.0f};   // −1000..1000 after Update
-		static std::atomic gSurfaceIdx{0};     // -1..82
+		std::atomic<float> gCamoScore{0.0f};  // −1000..1000 after Update
+		std::atomic<int>   gSurfaceIdx{0};    // -1..82
 		
 		void __fastcall UpdatePlayerCamoHook(void* self) {
 			// spdlog::debug(__func__);

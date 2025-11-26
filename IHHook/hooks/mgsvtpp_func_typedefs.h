@@ -197,6 +197,11 @@ typedef void (__fastcall luaL_openlibsFunc)(lua_State* L);
 //octocamo
 typedef void (__fastcall UpdatePlayerCamoFunc)(void* self);
 typedef void (__fastcall SetSuitCamoFunc)(void* self, void* ctx);
+
+//UI
+using StrCode   = uint64_t;   // this build stores into qword
+using StrCode32 = uint32_t;
+
 typedef void (__fastcall ScopeZoomUiUpdateFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateSightFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateScopeLengthFunc)(void* self);
@@ -222,7 +227,7 @@ typedef void* (__fastcall GetGlobalUixUtilityFunc)();
 typedef void (__fastcall SetModelNodeTextColorRGBFunc)(void* uix, void* modelNode, float r, float g, float b);
 typedef void (__fastcall SetModelNodeTextDrawPriorityFunc)(void* uix, void* layout, uint8_t prio);
 typedef void (__fastcall SetModelNodePriorityFunc)(void* uix, void* modelNodeCommon, uint8_t prio);
-typedef void (__fastcall SetModelNodeTextFontSizeFunc)(void* uix, void* modelNodeText, float a, float b);
+typedef void (__fastcall SetUixModelNodeTextFontSizeFunc)(void* uix, void* modelNodeText, float a, float b);
 typedef void (__fastcall SetModelNodeTextStatusFunc)(void* uix, void* text, uint16_t flags);
 typedef void (__fastcall SetModelNodeTextTextAlignFunc)(void* uix, void* modelNodeText, uint8_t align);
 typedef void (__fastcall SetModelNodeTextVerticalAlignFunc)(void* uix, void* modelNodeText, uint8_t valign);
@@ -293,7 +298,7 @@ typedef void (__fastcall InitModelNodeTextFunc)(void* node /*UiModelText*|UiMode
 typedef void* (__fastcall GetLayoutModelFunc)(void* thisLayout, uint32_t modelIndex);
 typedef void (__fastcall SetupModelFunc)(void* selfModel);
 typedef void* (__fastcall GetCommonNodeFunc)(void* selfModel);
-typedef bool (__fastcall IsHaveModelNodeCommonFunc)(void* selfUixUtility, const void* model, uint64_t stringId);
+typedef bool (__fastcall IsHaveModelNodeCommonFunc)(void* selfUixUtility, const void* model, StrCode stringId);
 
 typedef void (__fastcall UpdateWindowGraphFunc)(void* selfWindow);
 typedef void (__fastcall AddChildWindowFunc)(void* selfWindow, void* childWindow);
@@ -310,7 +315,7 @@ typedef void* (__fastcall GetTextUnitsFunc)(int index);
 typedef void (__fastcall SetTextUnitFunc)(void* selfTextUnit, char* text, uint32_t flags, uint16_t p3, uint16_t p4,
                                           float size, float tracking, uint32_t p7, uint32_t p8);
 typedef void (__fastcall GraphUpdateFunc)(void* selfGraph);
-typedef void (__fastcall ConnectLayoutUtilityComponentFunc)(void* childComp, void* parentComp, uint32_t portSid);
+typedef void (__fastcall ConnectLayoutUtilityComponentFunc)(void* childComp, void* parentComp, StrCode portSid);
 typedef void (__fastcall ConnectChildWindowToNodeFunc)(void* window, void* windowHandle, void* parentComp,
                                                        void* portPtr);
 typedef void (__fastcall ConnectWindowToParentFunc)(void* windowFunction, void* parentComp, void* portPtr);
@@ -324,6 +329,30 @@ typedef void* (__fastcall WindowCreateFunc)(const void* rc/*fox::ui::WindowResou
                                            uint32_t opt6,
                                            uint32_t opt7);
 typedef void* (__fastcall GetLayoutComponentFunc)(void* self);
+typedef const char* (__fastcall GetManagerTextFunc)(void* self, StrCode32 sid32);
+typedef void (__fastcall RegisterUiGraphNodeCtorFunc)(StrCode32 sig32, void* ctorThunk);
+typedef StrCode32* (__fastcall GetStringIdFunc)(StrCode* out, const char* string);
+typedef void (__fastcall CallHudMessageFunc)(void* commonDataManager, uint32_t msgId);
+typedef void (__fastcall CallHudMessageWithNumberFunc)(void* cdm /*RCX*/, uint32_t msgId /*EDX*/,
+                      uint32_t num1 /*R8D*/, uint32_t num2 /*R9D*/);
+typedef void (__fastcall CallHudMessageWithReceiverFunc)(void* cdm /*RCX*/, uint32_t msgId /*EDX*/,
+                      const void* messageArgs /*R8*/, uint32_t receiverStrCode32 /*R9D*/);
+typedef void (__fastcall HudCommonCallHudMessageFunc)(void* hudSystemImpl /*RCX*/, uint32_t msgId /*EDX*/,
+                      uint32_t arg /*R8D*/, uint32_t receiverStrCode32 /*R9D*/);
+typedef void (__fastcall InitializeHudUigDatasFunc)(void* self);
+typedef bool (__fastcall AnnounceLogViewFunc)(    void* cdm,            // RCX: tpp::ui::hud::CommonDataManager*
+    const char* text,     // RDX: zero-terminated message
+    uint8_t flags,        // R8B : bitfield (uses both BL and BPL; 0x10 tested)
+    uint8_t opts          // R9B : aux/route selector
+    );
+
+typedef void (__fastcall SetTextForModelNodeTextInternalFunc)(void* modelNodeText, void* textUnit /*TextUnit**/, const char* text, bool isLocalized);
+typedef void (__fastcall SetLayoutActiveFunc)(void* windowIface, bool enable);
+typedef void (__fastcall SetUiModelNodeTranslateFunc)(void* node, const float* v);
+typedef void (__fastcall SetModelNodeTextFontSizeFunc)(void* nodeText, float px, float secondary);
+typedef void (__fastcall SetModelNodeTextFontSpaceFunc)(void* nodeText, float a, float b);
+typedef void (__fastcall ResetModelNodeTextFontSizeFunc)(void* nodeText);
+typedef void (__fastcall ResetModelNodeTextFontSpaceFunc)(void* nodeText);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -530,7 +559,7 @@ extern GetGlobalUixUtilityFunc* GetGlobalUixUtility;
 extern SetModelNodeTextColorRGBFunc* SetModelNodeTextColorRGB;
 extern SetModelNodeTextDrawPriorityFunc* SetModelNodeTextDrawPriority;
 extern SetModelNodePriorityFunc* SetModelNodePriority;
-extern SetModelNodeTextFontSizeFunc* SetModelNodeTextFontSize;
+extern SetUixModelNodeTextFontSizeFunc* SetUixModelNodeTextFontSize;
 extern SetModelNodeTextStatusFunc* SetModelNodeTextStatus;
 extern SetModelNodeTextTextAlignFunc* SetModelNodeTextTextAlign;
 extern SetModelNodeTextVerticalAlignFunc* SetModelNodeTextVerticalAlign;
@@ -571,3 +600,23 @@ extern WindowCreateFunc* WindowCreate;
 extern GetLayoutComponentFunc* GetLayoutComponent;
 
 extern GetTextUnitsInternalFunc* GetTextUnitsInternal;
+
+extern GetManagerTextFunc* GetManagerText;
+
+extern RegisterUiGraphNodeCtorFunc* RegisterUiGraphNodeCtor;
+extern GetStringIdFunc* GetStringId;
+
+extern CallHudMessageFunc* CallHudMessage;
+extern CallHudMessageWithNumberFunc* CallHudMessageWithNumber;
+extern CallHudMessageWithReceiverFunc* CallHudMessageWithReceiver;
+extern HudCommonCallHudMessageFunc* HudCommonCallHudMessage;
+extern InitializeHudUigDatasFunc* InitializeHudUigDatas;
+
+extern AnnounceLogViewFunc* AnnounceLogView;
+extern SetTextForModelNodeTextInternalFunc* SetTextForModelNodeTextInternal;
+extern SetLayoutActiveFunc* SetLayoutActive;
+extern SetUiModelNodeTranslateFunc* SetUiModelNodeTranslate;
+extern SetModelNodeTextFontSizeFunc* SetModelNodeTextFontSize;
+extern SetModelNodeTextFontSpaceFunc* SetModelNodeTextFontSpace;
+extern ResetModelNodeTextFontSizeFunc* ResetModelNodeTextFontSize;
+extern ResetModelNodeTextFontSpaceFunc* ResetModelNodeTextFontSpace;

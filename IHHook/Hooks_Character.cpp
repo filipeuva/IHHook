@@ -91,6 +91,13 @@ namespace IHHook {
 
 		Character character;
 
+		static ulonglong* lastCamoFpkFileSlotIndex{};  
+		static ulonglong* lastCamoFv2FileSlotIndex{};  
+		static ulonglong* lastHeadFpkFileSlotIndex{};  
+		static ulonglong* lastHeadFv2FileSlotIndex{};  
+		static uint64_t* lastPlayerPartsFpkFileSlotIndex{};
+		static uint64_t* lastPlayerPartsFv2FileSlotIndex{};
+
 		int l_SetOverrideCharacterSystem(lua_State* L) {
 			overrideCharacterSystem = lua_toboolean(L, -1);
 
@@ -304,6 +311,27 @@ namespace IHHook {
 
 			return 0;
 		}//l_SetAvatarHornFpkPath
+		
+		int l_UpdatePlayerCamo(lua_State* L)
+		{
+			const int camoSlot = lua_tointeger(L, -1);
+			
+			spdlog::debug("l_UpdatePlayerCamo camoSlot:{} lastCamoFpkFileSlotIndex:{}", camoSlot, *lastCamoFpkFileSlotIndex);
+
+			auto retFileSlotIndex = LoadPlayerCamoFpk(lastCamoFpkFileSlotIndex, 0, 0, camoSlot);
+			LoadPlayerPartsFpk(retFileSlotIndex, 0, 0);
+
+
+			auto playerCamoFv2SlotIdx = LoadPlayerCamoFv2(lastCamoFv2FileSlotIndex, 0, 0, camoSlot);
+			LoadPlayerPartsParts(playerCamoFv2SlotIdx, 0, 0);
+
+			spdlog::debug("l_UpdatePlayerCamo retFileSlotIndex:{}", *retFileSlotIndex);
+
+			// LoadPlayerSnakeFaceFpk(lastHeadFpkFileSlotIndex, 0, 0, 0, 0);
+			// LoadPlayerSnakeFaceFv2(lastHeadFv2FileSlotIndex, 0, 0, 0, 0);
+			
+			return 0;
+		}
 
 		bool IsPlayerTypeValid(uint playerType) {
 			if (character.playerType == 255) {
@@ -335,7 +363,8 @@ namespace IHHook {
 		}//IsPlayerPartsTypeValid
 
 		uint64_t* LoadPlayerPartsFpkHook(uint64_t* fileSlotIndex, uint playerType, uint playerPartsType) {
-			spdlog::debug("LoadPlayerPartsFpkHook playerType:{}, playerPartsType:{}", playerType, playerPartsType);
+			lastPlayerPartsFpkFileSlotIndex = fileSlotIndex;
+			spdlog::debug("LoadPlayerPartsFpkHook fileSlotIndex:{} playerType:{}, playerPartsType:{}", *fileSlotIndex, playerType, playerPartsType);
 
 			if (!IsPlayerTypeValid(playerType) || character.playerPartsFpkPath == "") {
 				//DEBUGNOW ASSUMPTION: this being the first extended function were hooking
@@ -370,7 +399,8 @@ namespace IHHook {
 		}//LoadPlayerPartsFpkHook
 
 		uint64_t* LoadPlayerPartsPartsHook(uint64_t* fileSlotIndex, uint playerType, uint playerPartsType) {
-			spdlog::debug("LoadPlayerPartsPartsHook playerType:{}, playerPartsType:{}", playerType, playerPartsType);
+			lastPlayerPartsFv2FileSlotIndex = fileSlotIndex;
+			spdlog::debug("LoadPlayerPartsPartsHook fileSlotIndex:{} playerType:{}, playerPartsType:{}", *fileSlotIndex, playerType, playerPartsType);
 			
 			if (!IsPlayerTypeValid(playerType) || character.playerPartsPartsPath == "") {
 				//tex as above, but to catch odd cases (LoadPlayerPartsParts is called on mission load without LoadPlayerPartsFpk)
@@ -645,9 +675,12 @@ namespace IHHook {
 			return false;
 		}
 
-		ulonglong* LoadPlayerCamoFpkHook(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType, uint playerCamoType) {
-			spdlog::debug("LoadPlayerCamoFpkHook playerType:{}, playerPartsType:{}, playerCamoType:{}", playerType, playerPartsType, playerCamoType);
 
+		ulonglong* LoadPlayerCamoFpkHook(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType, uint playerCamoType) {
+			spdlog::debug("LoadPlayerCamoFpkHook fileSlotIndex:{} playerType:{}, playerPartsType:{}, playerCamoType:{}", *fileSlotIndex, playerType, playerPartsType, playerCamoType);
+
+			lastCamoFpkFileSlotIndex = fileSlotIndex;
+			
 			if (!IsValidPlayerCamo()) {
 				return LoadPlayerCamoFpk(fileSlotIndex, playerType, playerPartsType, playerCamoType);
 			}
@@ -678,8 +711,10 @@ namespace IHHook {
 		}//LoadPlayerCamoFpkHook
 
 		ulonglong* LoadPlayerCamoFv2Hook(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType, uint playerCamoType) {
-			spdlog::debug("LoadPlayerCamoFv2Hook playerType:{}, playerPartsType:{}, playerCamoType:{}", playerType, playerPartsType, playerCamoType);
-			
+			spdlog::debug("LoadPlayerCamoFv2Hook fileSlotIndex:{} playerType:{}, playerPartsType:{}, playerCamoType:{}", *fileSlotIndex, playerType, playerPartsType, playerCamoType);
+
+			lastCamoFv2FileSlotIndex = fileSlotIndex;
+
 			if (!IsValidPlayerCamo()) {
 				return LoadPlayerCamoFv2(fileSlotIndex, playerType, playerPartsType, playerCamoType);
 			}
@@ -1209,7 +1244,8 @@ namespace IHHook {
 		//tex vanilla does not have seperate IsHeadNeededForPartsTypeSnake, is rolled into LoadPlayerSnakeFaceFpk
 		//for playerType SNAKE it uses playerFaceId for hornLevel
 		ulonglong* LoadPlayerSnakeFaceFpkHook(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType, uint hornLevel, char playerFaceEquipId) {
-			spdlog::debug("LoadPlayerSnakeFaceFpkHook playerPartsType:{} headNeeded:{}", playerPartsType, character.useHead);
+			lastHeadFpkFileSlotIndex = fileSlotIndex;
+			spdlog::debug("LoadPlayerSnakeFaceFpkHook fileSlotIndex:{} playerPartsType:{} headNeeded:{}",*fileSlotIndex, playerPartsType, character.useHead);
 
 			if (playerType != 0) {
 				LoadFile(fileSlotIndex, 0);
@@ -1241,7 +1277,8 @@ namespace IHHook {
 		}//LoadPlayerSnakeFaceFpkHook
 
 		ulonglong* LoadPlayerSnakeFaceFv2Hook(ulonglong* fileSlotIndex, uint playerType, uint playerPartsType, uint hornLevel, char playerFaceEquipId) {
-			spdlog::debug("LoadPlayerSnakeFaceFpkHook playerPartsType:{} headNeeded:{}", playerPartsType, character.useHead);
+			lastHeadFv2FileSlotIndex = fileSlotIndex;
+			spdlog::debug("LoadPlayerSnakeFaceFv2Hook fileSlotIndex:{} playerPartsType:{} headNeeded:{}", *fileSlotIndex, playerPartsType, character.useHead);
 
 			if (playerType != 0) {
 				LoadFile(fileSlotIndex, 0);
@@ -1365,7 +1402,7 @@ namespace IHHook {
 				{ "SetSnakeFaceFv2Path", l_SetSnakeFaceFv2Path },
 				{ "SetAvatarHornFpkPath", l_SetAvatarHornFpkPath },
 				{ "SetAvatarHornFv2Path", l_SetAvatarHornFv2Path },
-				
+				{ "UpdatePlayerCamo", l_UpdatePlayerCamo },
 				//{ "SetPlayerPartsFpk", l_SetPlayerPartsFpk },//UNUSED
 				//{ "SetPlayerPartsPart", l_SetPlayerPartsPart },//UNUSED
 				{ NULL, NULL }//GOTCHA: crashes without
