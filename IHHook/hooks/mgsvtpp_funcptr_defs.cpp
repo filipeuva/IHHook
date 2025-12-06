@@ -275,3 +275,30 @@ SetModelNodeTextFontSizeFunc* SetModelNodeTextFontSize;
 SetModelNodeTextFontSpaceFunc* SetModelNodeTextFontSpace;
 ResetModelNodeTextFontSizeFunc* ResetModelNodeTextFontSize;
 ResetModelNodeTextFontSpaceFunc* ResetModelNodeTextFontSpace;
+GraphNodeFactoryFunc* GraphNodeFactory;
+
+UpdateWindowManagerGraphsFunc* UpdateWindowManagerGraphs;
+NewUiLayoutSharedPtrFunc* NewUiLayoutSharedPtr;
+NewUiModelSharedPtrFunc* NewUiModelSharedPtr;
+UiModelNodeCtorFunc* UiModelNodeCtor;
+LayoutCtorFunc* LayoutCtor;
+
+ReadUiModelFileFunc* ReadUiModelFile;
+ReadUiModelNodeFunc* ReadUiModelNode;
+
+LayoutDtorFunc* LayoutDtor;
+ModelDtorFunc* ModelDtor;
+ModelNodeDtorFunc* ModelNodeDtor;
+LayoutGetLayoutFunc* LayoutGetLayout;
+ModelCtorFunc* ModelCtor;
+
+WindowCtorFunc* WindowCtor;
+WindowDtorFunc* WindowDtor;
+ProcessWindowFunc* ProcessWindow;
+FindChildWindowFunc* FindChildWindow;
+FindUiWindowFunc* FindUiWindow;
+UpdateWindowLayoutsFunc* UpdateWindowLayouts;
+GetWindowInterfaceLayoutFunc* GetWindowInterfaceLayout;
+
+GetWindowNameFunc* GetWindowName;
+CreateChildWindowsFunc* CreateChildWindows;

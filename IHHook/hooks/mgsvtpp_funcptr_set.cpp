@@ -265,5 +265,27 @@ namespace IHHook {
 		SetModelNodeTextFontSpace = (SetModelNodeTextFontSpaceFunc*)addressSet["SetModelNodeTextFontSpace"];
 		ResetModelNodeTextFontSize = (ResetModelNodeTextFontSizeFunc*)addressSet["ResetModelNodeTextFontSize"];
 		ResetModelNodeTextFontSpace = (ResetModelNodeTextFontSpaceFunc*)addressSet["ResetModelNodeTextFontSpace"];
+		GraphNodeFactory = (GraphNodeFactoryFunc*)addressSet["GraphNodeFactory"];
+		UpdateWindowManagerGraphs = (UpdateWindowManagerGraphsFunc*)addressSet["UpdateWindowManagerGraphs"];
+		NewUiLayoutSharedPtr = (NewUiLayoutSharedPtrFunc*)addressSet["NewUiLayoutSharedPtr"];
+		NewUiModelSharedPtr = (NewUiModelSharedPtrFunc*)addressSet["NewUiModelSharedPtr"];
+		UiModelNodeCtor = (UiModelNodeCtorFunc*)addressSet["UiModelNodeCtor"];
+		LayoutCtor = (LayoutCtorFunc*)addressSet["LayoutCtor"];
+		ReadUiModelFile = (ReadUiModelFileFunc*)addressSet["ReadUiModelFile"];
+		ReadUiModelNode = (ReadUiModelNodeFunc*)addressSet["ReadUiModelNode"];
+		LayoutDtor = (LayoutDtorFunc*)addressSet["LayoutDtor"];
+		ModelDtor = (ModelDtorFunc*)addressSet["ModelDtor"];
+		ModelNodeDtor = (ModelNodeDtorFunc*)addressSet["ModelNodeDtor"];
+		LayoutGetLayout = (LayoutGetLayoutFunc*)addressSet["GetLayout"];
+		ModelCtor = (ModelCtorFunc*)addressSet["ModelCtor"];
+		WindowCtor = (WindowCtorFunc*)addressSet["WindowCtor"];
+		WindowDtor = (WindowDtorFunc*)addressSet["WindowDtor"];
+		ProcessWindow = (ProcessWindowFunc*)addressSet["ProcessWindow"];
+		FindChildWindow = (FindChildWindowFunc*)addressSet["FindChildWindow"];
+		FindUiWindow = (FindUiWindowFunc*)addressSet["FindUiWindow"];
+		UpdateWindowLayouts = (UpdateWindowLayoutsFunc*)addressSet["UpdateWindowLayouts"];
+		GetWindowInterfaceLayout = (GetWindowInterfaceLayoutFunc*)addressSet["GetWindowInterfaceLayout"];
+		GetWindowName = (GetWindowNameFunc*)addressSet["GetWindowName"];
+		CreateChildWindows = (CreateChildWindowsFunc*)addressSet["CreateChildWindows"];
 	}//SetFuncPtrs
 }//namespace IHHook

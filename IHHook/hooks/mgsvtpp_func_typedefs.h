@@ -199,8 +199,42 @@ typedef void (__fastcall UpdatePlayerCamoFunc)(void* self);
 typedef void (__fastcall SetSuitCamoFunc)(void* self, void* ctx);
 
 //UI
-using StrCode   = uint64_t;   // this build stores into qword
-using StrCode32 = uint32_t;
+namespace fox
+{
+    using StrCode = uint64_t; // this build stores into qword
+    using StrCode32 = uint32_t;
+    class Object;
+
+    template <typename T>
+    struct SharedPtr
+    {
+        T* Object; /*...*/
+    };
+
+    using FilePtr = void;
+    using UiShared = SharedPtr<Object>;
+    using UiGraphNodeCtorFn =
+    UiShared* (__fastcall*)(UiShared* out);
+
+    namespace ui
+    {
+        using Layout = void; // fox::ui::Layout
+        using LayoutComponent = void; // fox::ui::Layout
+        using Model = void; // fox::ui::Model
+        using ModelNode = void; // fox::ui::ModelNode
+        using ModelNodeText = void; // fox::ui::ModelNodeText
+        using Window = void; // fox::ui::Window
+        using WindowFunction = void; // some WindowFunction* / factory iface
+        using WindowHandle = void; // fox::ui::WindowHandle
+        using WindowInterface = void; // fox::ui::WindowInterface ?
+        using WindowManager = void;
+        using WindowResourceCreator = void;
+        using TextUnit = void;
+        using ModelFileHeader = void; // ModelFileHeader*
+        using ModelNodeHeader = void; // ModelNodeHeader*
+        using UiUtilityImpl = void;
+    }
+}
 
 typedef void (__fastcall ScopeZoomUiUpdateFunc)(void* self);
 typedef void (__fastcall ScopeZoomUiUpdateSightFunc)(void* self);
@@ -215,7 +249,7 @@ typedef void (__fastcall ConnectLayoutComponentFunc)(void* childComp, void* pare
 typedef void (__fastcall SetLayoutParentComponentFunc)(void* child /*RCX*/, void* parent /*RDX*/);
 typedef int (__fastcall RemoveLayoutChildComponentFunc)(void* parent /*RCX*/, void* child /*RDX*/);
 typedef void (__fastcall OnLayoutComponentDestroyFunc)(void* self);
-typedef void (__fastcall ConnectChildWindowToRootFunc)(void* window /*RCX*/, void* childWindow /*RDX*/);
+typedef void (__fastcall ConnectChildWindowToRootFunc)(fox::ui::Window* window /*RCX*/, fox::ui::Window* childWindow /*RDX*/);
 typedef void* (__fastcall NodeConnectShimFunc)(void* owner, void* parentComp, void* portPtr, void* childNode);
 typedef void (__fastcall InitMbStageSpotFunc)(void* self);
 typedef void (__fastcall InitPhaseUiFunc)(void* phase);
@@ -270,13 +304,13 @@ struct ActSetText
 
 typedef void (__fastcall RunAnalysisFunc)(ActSetText* self);
 
-// struct UiModel
+// struct Model
 // {
 //     void* vtbl; // +0x00
 //     uint8_t _pad0[0x80 - 0x08];
-//     void* root; // +0x80 UiModelNode*
+//     void* root; // +0x80 ModelNode*
 //     int32_t nodeCount; // +0x90
-//     void** nodeArray; // +0x98 UiModelNode** 
+//     void** nodeArray; // +0x98 ModelNode** 
 //     uint32_t animCount; // +0xA0
 //     void** animFiles; // +0xA8
 // };
@@ -288,71 +322,133 @@ typedef void* (__fastcall NewUiModelTextFunc)(uint32_t sceneStrCode32, void* cre
 typedef void* (__fastcall GetModelNodeFromIndexFunc)(const void* thisModel, int index);
 typedef const void* (__fastcall LoadCreationContextFunc)(const void* serializedBlob, void* outCtx);
 typedef void (__fastcall SetNodeVisibilityFunc)(void* node, bool visible);
-typedef void (__fastcall ReadNodeFunc)(void* thisPtr, void* file /*UiModelFileHeader**/,
-                                       void* nodeHeader /*UiModelNodeHeader**/, uint32_t* strCode32s,
+typedef void (__fastcall ReadNodeFunc)(void* thisPtr, void* file /*ModelFileHeader**/,
+                                       void* nodeHeader /*ModelNodeHeader**/, fox::StrCode32* strCode32s,
                                        uint64_t* outName);
-typedef void (__fastcall InitModelNodeTextFunc)(void* node /*UiModelText*|UiModelNode**/,
+typedef void (__fastcall InitModelNodeTextFunc)(void* node /*ModelNodeText*|ModelNode**/,
                                                 void* modelFile /*UiModelFile* (blob base w/ string table)*/,
-                                                void* fileHeader /*UiModelFileHeader**/,
-                                                void* nodeHeader /*UiModelNodeHeader**/);
-typedef void* (__fastcall GetLayoutModelFunc)(void* thisLayout, uint32_t modelIndex);
-typedef void (__fastcall SetupModelFunc)(void* selfModel);
-typedef void* (__fastcall GetCommonNodeFunc)(void* selfModel);
-typedef bool (__fastcall IsHaveModelNodeCommonFunc)(void* selfUixUtility, const void* model, StrCode stringId);
+                                                void* fileHeader /*ModelFileHeader**/,
+                                                void* nodeHeader /*ModelNodeHeader**/);
+typedef void* (__fastcall GetLayoutModelFunc)(fox::ui::Layout* thisLayout, uint32_t modelIndex);
+typedef void (__fastcall SetupModelFunc)(fox::ui::Model* selfModel);
+typedef fox::ui::ModelNode* (__fastcall GetCommonNodeFunc)(fox::ui::Model* selfModel);
+typedef bool (__fastcall IsHaveModelNodeCommonFunc)(void* selfUixUtility, const void* model, fox::StrCode stringId);
 
-typedef void (__fastcall UpdateWindowGraphFunc)(void* selfWindow);
-typedef void (__fastcall AddChildWindowFunc)(void* selfWindow, void* childWindow);
+typedef void (__fastcall UpdateWindowGraphFunc)(fox::ui::Window* selfWindow);
+typedef void (__fastcall AddChildWindowFunc)(fox::ui::Window* selfWindow, fox::ui::Window* childWindow);
 typedef void* (__fastcall CreateNewWindowFunc)(void* windowFunction /*WindowFunction* or service*/, const void* nameStr,
                                                uint32_t flagsA, uint32_t flagsB);
-typedef void* (__fastcall GetWindowManagerFunc)();
-typedef void* (__fastcall GetWindowLayoutFunc)(void* windowFunction, uint64_t layoutId);
+typedef fox::ui::WindowManager* (__fastcall GetWindowManagerFunc)();
+typedef void* (__fastcall GetWindowLayoutFunc)(void* windowFunction, fox::StrCode layoutId);
 
 typedef void* (__fastcall FindWindowFactoryFunc)(void* collector, int hash);
 typedef void (__fastcall RegisterWindowFactoryFunc)(void* collector, void* factory);
 typedef void* (__fastcall GetWindowHandleFunc)(void* mgr, void* windowFunction);
 typedef void (__fastcall SetLayoutInfoFunc)(void* windowHandle, const void* layoutInfo);
 typedef void* (__fastcall GetTextUnitsFunc)(int index);
-typedef void (__fastcall SetTextUnitFunc)(void* selfTextUnit, char* text, uint32_t flags, uint16_t p3, uint16_t p4,
-                                          float size, float tracking, uint32_t p7, uint32_t p8);
+typedef void (__fastcall SetTextUnitFunc)(fox::ui::TextUnit* selfTextUnit, char* text, uint32_t flags, uint16_t chars, uint16_t font,
+                                          float sizeWidth, float sizeHeight, uint32_t extraFlags, uint32_t p8);
+// fox::ui::TextUnit::Setting(
+//     param_1,          // TextUnit*
+//     param_2,          // utf-8 text
+//     uVar6,            // flags
+//     uVar7,            // chars (codepoints)
+//     param_6,          // style/font index
+//     param_5,          // computed width
+//     local_res10[0],   // computed height
+//     param_7,          // extra flag (shadow / outline / etc)
+//     0);
 typedef void (__fastcall GraphUpdateFunc)(void* selfGraph);
-typedef void (__fastcall ConnectLayoutUtilityComponentFunc)(void* childComp, void* parentComp, StrCode portSid);
+typedef void (__fastcall ConnectLayoutUtilityComponentFunc)(void* childComp, void* parentComp, fox::StrCode portSid);
 typedef void (__fastcall ConnectChildWindowToNodeFunc)(void* window, void* windowHandle, void* parentComp,
                                                        void* portPtr);
 typedef void (__fastcall ConnectWindowToParentFunc)(void* windowFunction, void* parentComp, void* portPtr);
-typedef void (__fastcall LayoutConnectFunc)(void* uiUtil, void* windowIface, uint64_t sidA, uint64_t sidB,
-                                            uint64_t sidModel, uint64_t sidPort);
+typedef void (__fastcall LayoutConnectFunc)(fox::ui::UiUtilityImpl* uiUtil, fox::ui::WindowHandle* windowIface, fox::StrCode sidA, fox::StrCode sidB,
+                                            fox::StrCode sidModel, fox::StrCode sidPort);
 
-typedef void* (__fastcall WindowCreateFunc)(const void* rc/*fox::ui::WindowResourceCreator*/,
-                                           const void* name /*fox::String*/, uint32_t flags,
-                                           void* parent/*fox::ui::Window*/,
-                                           uint16_t zOrder,
-                                           uint32_t opt6,
-                                           uint32_t opt7);
+typedef fox::ui::Window* (__fastcall WindowCreateFunc)(const fox::ui::WindowResourceCreator* rc,
+                                            const fox::String* name, uint32_t flags,
+                                            fox::ui::Window* parent,
+                                            uint16_t zOrder,
+                                            uint32_t opt6,
+                                            uint32_t opt7);
 typedef void* (__fastcall GetLayoutComponentFunc)(void* self);
-typedef const char* (__fastcall GetManagerTextFunc)(void* self, StrCode32 sid32);
-typedef void (__fastcall RegisterUiGraphNodeCtorFunc)(StrCode32 sig32, void* ctorThunk);
-typedef StrCode32* (__fastcall GetStringIdFunc)(StrCode* out, const char* string);
-typedef void (__fastcall CallHudMessageFunc)(void* commonDataManager, uint32_t msgId);
-typedef void (__fastcall CallHudMessageWithNumberFunc)(void* cdm /*RCX*/, uint32_t msgId /*EDX*/,
-                      uint32_t num1 /*R8D*/, uint32_t num2 /*R9D*/);
-typedef void (__fastcall CallHudMessageWithReceiverFunc)(void* cdm /*RCX*/, uint32_t msgId /*EDX*/,
-                      const void* messageArgs /*R8*/, uint32_t receiverStrCode32 /*R9D*/);
-typedef void (__fastcall HudCommonCallHudMessageFunc)(void* hudSystemImpl /*RCX*/, uint32_t msgId /*EDX*/,
-                      uint32_t arg /*R8D*/, uint32_t receiverStrCode32 /*R9D*/);
+typedef const char* (__fastcall GetManagerTextFunc)(void* self, fox::StrCode32 sid32);
+typedef void (__fastcall RegisterUiGraphNodeCtorFunc)(fox::StrCode32 sig32, fox::UiGraphNodeCtorFn ctor);
+typedef fox::StrCode32* (__fastcall GetStringIdFunc)(fox::StrCode* out, const char* string);
+typedef void (__fastcall CallHudMessageFunc)(void* commonDataManager, fox::StrCode32 msgId);
+typedef void (__fastcall CallHudMessageWithNumberFunc)(void* cdm /*RCX*/, fox::StrCode32 msgId /*EDX*/,
+                                                       uint32_t num1 /*R8D*/, uint32_t num2 /*R9D*/);
+typedef void (__fastcall CallHudMessageWithReceiverFunc)(void* cdm /*RCX*/, fox::StrCode32 msgId /*EDX*/,
+                                                         const void* messageArgs /*R8*/,
+                                                         fox::StrCode32 receiverStrCode32 /*R9D*/);
+typedef void (__fastcall HudCommonCallHudMessageFunc)(void* hudSystemImpl /*RCX*/, fox::StrCode32 msgId /*EDX*/,
+                                                      uint32_t arg /*R8D*/, fox::StrCode32 receiverStrCode32 /*R9D*/);
 typedef void (__fastcall InitializeHudUigDatasFunc)(void* self);
-typedef bool (__fastcall AnnounceLogViewFunc)(    void* cdm,            // RCX: tpp::ui::hud::CommonDataManager*
-    const char* text,     // RDX: zero-terminated message
-    uint8_t flags,        // R8B : bitfield (uses both BL and BPL; 0x10 tested)
-    uint8_t opts          // R9B : aux/route selector
-    );
+typedef bool (__fastcall AnnounceLogViewFunc)(void* cdm, // RCX: tpp::ui::hud::CommonDataManager*
+                                              const char* text, // RDX: zero-terminated message
+                                              uint8_t flags, // R8B : bitfield (uses both BL and BPL; 0x10 tested)
+                                              uint8_t opts // R9B : aux/route selector
+);
 
-typedef void (__fastcall SetTextForModelNodeTextInternalFunc)(void* modelNodeText, void* textUnit /*TextUnit**/, const char* text, bool isLocalized);
+typedef void (__fastcall SetTextForModelNodeTextInternalFunc)(void* modelNodeText, void* textUnit /*TextUnit**/,
+                                                              const char* text, bool isLocalized);
 typedef void (__fastcall SetLayoutActiveFunc)(void* windowIface, bool enable);
 typedef void (__fastcall SetUiModelNodeTranslateFunc)(void* node, const float* v);
 typedef void (__fastcall SetModelNodeTextFontSizeFunc)(void* nodeText, float px, float secondary);
 typedef void (__fastcall SetModelNodeTextFontSpaceFunc)(void* nodeText, float a, float b);
 typedef void (__fastcall ResetModelNodeTextFontSizeFunc)(void* nodeText);
 typedef void (__fastcall ResetModelNodeTextFontSpaceFunc)(void* nodeText);
+
+
+typedef void (__fastcall GraphNodeFactoryFunc)(fox::UiShared* outGraphNode, fox::StrCode32 graphSid);
+
+typedef void (__fastcall UpdateWindowManagerGraphsFunc)(fox::ui::WindowManager* self, uint32_t groupId);
+typedef fox::SharedPtr<fox::ui::Layout>* (__fastcall NewUiLayoutSharedPtrFunc)(
+    fox::SharedPtr<fox::ui::Layout>* outPtr, uint32_t flags);
+typedef fox::SharedPtr<fox::ui::Model>* (__fastcall NewUiModelSharedPtrFunc)(
+    fox::SharedPtr<fox::ui::Model>* outPtr, fox::FilePtr* file, fox::StrCode32 name, uint64_t unused_or_flags);
+typedef fox::ui::ModelNode* (__fastcall UiModelNodeCtorFunc)(fox::ui::ModelNode* self, fox::StrCode32 name);
+typedef fox::ui::Layout* (__fastcall LayoutCtorFunc)(fox::ui::Layout* self, uint32_t layoutFlags);
+
+typedef bool (__fastcall ReadUiModelFileFunc)(fox::ui::Model* model);
+typedef void (__fastcall ReadUiModelNodeFunc)(fox::ui::ModelNode* self,
+                                              fox::ui::ModelFileHeader* fileHeader,
+                                              fox::ui::ModelNodeHeader* nodeHeader,
+                                              fox::StrCode32* strCode32s,
+                                              uint32_t* outName // comes from [rsp+0x28] at call site
+);
+
+typedef void (__fastcall LayoutDtorFunc)(fox::ui::Layout* self);
+typedef void (__fastcall ModelDtorFunc)(fox::ui::Model* self);
+typedef void (__fastcall ModelNodeDtorFunc)(fox::ui::ModelNode* self);
+
+typedef fox::ui::Layout* (__fastcall LayoutGetLayoutFunc)(fox::ui::Layout* self, int layoutId);
+typedef fox::ui::Model* (__fastcall ModelCtorFunc)(fox::ui::Model* self, fox::FilePtr* file, fox::StrCode32 name);
+
+typedef fox::ui::Window* (__fastcall WindowCtorFunc)(fox::ui::Window* self,
+    fox::ui::WindowFunction* resourceCreator,
+    fox::String* name,
+    uint32_t type,
+    fox::ui::WindowResourceCreator** creatorIface,
+    uint16_t zOrder,
+    uint32_t groupId,
+    uint32_t updateMask);
+typedef void (__fastcall WindowDtorFunc)(fox::ui::Window* self);
+
+typedef void (__fastcall ProcessWindowFunc)(fox::ui::Window* self,
+    const uint32_t* msg,
+    const uint64_t* arg0,
+    const uint64_t* arg1);
+typedef fox::ui::Window* (__fastcall FindChildWindowFunc)(const fox::ui::Window* self,
+                                                          fox::StrCode32 id);
+typedef fox::ui::Window* (__fastcall FindUiWindowFunc)(fox::StrCode32 sid);
+typedef void (__fastcall UpdateWindowLayoutsFunc)(fox::ui::WindowManager* self,
+                                                 fox::StrCode32 groupId);
+typedef fox::ui::Layout* (__fastcall GetWindowInterfaceLayoutFunc)(fox::ui::WindowInterface* self);
+
+typedef fox::String* (__fastcall GetWindowNameFunc)(fox::ui::Window* self);
+typedef bool (__fastcall CreateChildWindowsFunc)(void* creator, fox::ui::Window* parentWin);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -620,3 +716,30 @@ extern SetModelNodeTextFontSizeFunc* SetModelNodeTextFontSize;
 extern SetModelNodeTextFontSpaceFunc* SetModelNodeTextFontSpace;
 extern ResetModelNodeTextFontSizeFunc* ResetModelNodeTextFontSize;
 extern ResetModelNodeTextFontSpaceFunc* ResetModelNodeTextFontSpace;
+extern GraphNodeFactoryFunc* GraphNodeFactory;
+
+extern UpdateWindowManagerGraphsFunc* UpdateWindowManagerGraphs;
+extern NewUiLayoutSharedPtrFunc* NewUiLayoutSharedPtr;
+extern NewUiModelSharedPtrFunc* NewUiModelSharedPtr;
+extern UiModelNodeCtorFunc* UiModelNodeCtor;
+extern LayoutCtorFunc* LayoutCtor;
+
+extern ReadUiModelFileFunc* ReadUiModelFile;
+extern ReadUiModelNodeFunc* ReadUiModelNode;
+
+extern LayoutDtorFunc* LayoutDtor;
+extern ModelDtorFunc* ModelDtor;
+extern ModelNodeDtorFunc* ModelNodeDtor;
+extern LayoutGetLayoutFunc* LayoutGetLayout;
+extern ModelCtorFunc* ModelCtor;
+
+extern WindowCtorFunc* WindowCtor;
+extern WindowDtorFunc* WindowDtor;
+extern ProcessWindowFunc* ProcessWindow;
+extern FindChildWindowFunc* FindChildWindow;
+extern FindUiWindowFunc* FindUiWindow;
+extern UpdateWindowLayoutsFunc* UpdateWindowLayouts;
+extern GetWindowInterfaceLayoutFunc* GetWindowInterfaceLayout;
+
+extern GetWindowNameFunc* GetWindowName;
+extern CreateChildWindowsFunc* CreateChildWindows;
