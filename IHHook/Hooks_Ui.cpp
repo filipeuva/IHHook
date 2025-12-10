@@ -37,17 +37,17 @@ namespace IHHook
             std::vector<fox::ui::Window*> children; // direct children in window graph
 
             fox::ui::Layout* attachLayout{}; // parent layout we hang from (if child)
-            void*            attachAnchor{}; // portPtr / node / slot pointer
+            void* attachAnchor{}; // portPtr / node / slot pointer
 
             std::string windowName;
         };
 
         struct ModelInfo
         {
-            fox::ui::ModelFileHeader*             fileHeader{}; // *(model + 0x68)
-            fox::StrCode32                        modelName{};  // NewUiModelSharedPtr name
-            fox::StrCode                          pathCode64{}; // optional: fill if you ever hook GetPathCode64s
-            std::vector<fox::ui::ModelNode*>      nodes;        // collected in ReadUiModelNodeHook
+            fox::ui::ModelFileHeader* fileHeader{}; // *(model + 0x68)
+            fox::StrCode32 modelName{}; // NewUiModelSharedPtr name
+            fox::StrCode pathCode64{}; // optional: fill if you ever hook GetPathCode64s
+            std::vector<fox::ui::ModelNode*> nodes; // collected in ReadUiModelNodeHook
         };
 
         static std::unordered_map<fox::ui::Window*, WindowInfo> g_windows; // window* -> info
@@ -57,7 +57,8 @@ namespace IHHook
 
         // NEW: layouts seen per handle (WindowInterface). We bind these to a Window*
         // as soon as we learn handle->window.
-        static std::unordered_map<const fox::ui::WindowInterface*, std::vector<fox::ui::Layout*>> g_ifaceLayouts;   // key = WindowInterface*
+        static std::unordered_map<const fox::ui::WindowInterface*, std::vector<fox::ui::Layout*>> g_ifaceLayouts;
+        // key = WindowInterface*
         static std::unordered_map<fox::ui::WindowHandle*, std::vector<fox::ui::Layout*>> g_handleLayouts;
 
         static std::unordered_map<fox::ui::Model*, ModelInfo> g_modelInfo; // Model* -> info
@@ -68,11 +69,331 @@ namespace IHHook
         static std::unordered_set<fox::ui::Layout*> g_seenLayoutsSet;
         static std::unordered_map<fox::ui::LayoutComponent*, fox::ui::Layout*> g_componentToLayout;
 
+        static std::vector<fox::ui::Window*> g_seenWindows;
+        static std::unordered_set<fox::ui::Window*> g_seenWindowSet;
+
         static std::mutex g_uiMutex;
+
+        //TODO: Refactor into struct info
+        static void* g_ModelNodeCommonlVtbl = reinterpret_cast<void*>(0x142553ea0);
+        static void* g_ModelNodeMeshlVtbl = reinterpret_cast<void*>(0x142546910);
+        static void* g_ModelNodeTextVtbl = reinterpret_cast<void*>(0x142544c80);
+        static void* g_ModelNodeStencilVtbl = reinterpret_cast<void*>(0x1425540d0);
+        static void* g_ModelNodeLineVtbl = reinterpret_cast<void*>(0x142546ab0);
+        static void* g_ModelNodeVtbl = reinterpret_cast<void*>(0x142545d70); // ??
+        static void* g_ModelVtbl = reinterpret_cast<void*>(0x142546240);
+        static void* g_LayoutVtbl = reinterpret_cast<void*>(0x142543700);
+        static void* g_WindowVtbl = reinterpret_cast<void*>(0x1425472b0);
 
         // ---------------------------------------------------------------------
         // Hooked Utils TODO: Pass these to struct
         // ---------------------------------------------------------------------
+
+        struct ModelNodeWrapper
+        {
+            static constexpr void* vtbl = reinterpret_cast<void*>(0x142545d70);
+            fox::ui::ModelNode* ptr{};
+
+            explicit ModelNodeWrapper(fox::ui::ModelNode* p) : ptr(p)
+            {
+            }
+
+            static bool isStruct(void* obj)
+            {
+                if (!obj) return false;
+                void* objVtbl = *reinterpret_cast<void**>(obj);
+                return objVtbl == vtbl;
+            }
+        };
+
+        struct LayoutComponentWrapper
+        {
+            fox::ui::LayoutComponent* ptr{};
+
+            LayoutComponentWrapper() = default;
+
+            explicit LayoutComponentWrapper(fox::ui::LayoutComponent* p) : ptr(p)
+            {
+            }
+
+            uint32_t GetComponentChildCount()
+            {
+                if (!ptr) return 0;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<uint32_t*>(base + 0x10);
+            }
+
+            fox::ui::LayoutComponent** GetComponentChildArray()
+            {
+                if (!ptr) return nullptr;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<fox::ui::LayoutComponent***>(base + 0x18);
+            }
+
+            fox::ui::LayoutComponent* GetComponentParent()
+            {
+                if (!ptr) return nullptr;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<fox::ui::LayoutComponent**>(base + 0x38);
+            }
+
+            const void* GetComponentPortNode() // fox::ui::ModelNode const*
+            {
+                if (!ptr) return nullptr;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<void* const*>(base + 0x40);
+            }
+        };
+
+        struct ModelWrapper : LayoutComponentWrapper
+        {
+            static constexpr void* vtbl = reinterpret_cast<void*>(0x142546240);
+
+            explicit ModelWrapper(fox::ui::Model* p) : LayoutComponentWrapper(p)
+            {
+            }
+
+            static bool isStruct(void* obj)
+            {
+                if (!obj) return false;
+                void* objVtbl = *reinterpret_cast<void**>(obj);
+                return objVtbl == vtbl;
+            }
+
+            uint32_t GetModelNodeCountRaw()
+            {
+                if (!ptr) return 0;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<uint32_t*>(base + 0x90);
+            }
+
+            fox::ui::ModelNode** GetModelNodeArrayTyped()
+            {
+                if (!ptr) return nullptr;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<fox::ui::ModelNode***>(base + 0x98);
+            }
+        };
+
+        struct LayoutWrapper : LayoutComponentWrapper
+        {
+            static constexpr void* vtbl = reinterpret_cast<void*>(0x142543700);
+            fox::ui::Layout* ptr{};
+
+            LayoutWrapper() = default;
+
+            explicit LayoutWrapper(fox::ui::Layout* p) : ptr(p)
+            {
+            }
+
+            static bool isStruct(void* obj)
+            {
+                if (!obj) return false;
+                void* objVtbl = *reinterpret_cast<void**>(obj);
+                return objVtbl == vtbl;
+            }
+
+            uint32_t GetModelCountRaw()
+            {
+                if (!ptr) return 0;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<uint32_t*>(base + 0xC0);
+            }
+
+            fox::ui::Model** GetModelArrayTyped()
+            {
+                if (!ptr) return nullptr;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<fox::ui::Model***>(base + 0xC8);
+            }
+        };
+
+        struct WindowSlotEntry
+        {
+            void* slotObj; // 0x0
+            int32_t prevIdx; // 0x8
+            int32_t nextIdx; // 0xC
+        };
+
+        struct WindowWrapper
+        {
+            static constexpr void* vtbl = reinterpret_cast<void*>(0x1425472b0);
+            fox::ui::Window* ptr{};
+
+            WindowWrapper() = default;
+
+            explicit WindowWrapper(fox::ui::Window* p) : ptr(p)
+            {
+            }
+
+            static constexpr size_t kFlagsCountOff = 0x48;
+            static constexpr size_t kHeadIdxOff = 0x50;
+            static constexpr size_t kTailIdxOff = 0x54;
+            static constexpr size_t kFreeIdxOff = 0x58;
+            static constexpr size_t kSlotsBaseOff = 0x60;
+
+            static bool isStruct(void* obj)
+            {
+                if (!obj) return false;
+                void* objVtbl = *reinterpret_cast<void**>(obj);
+                return objVtbl == vtbl;
+            }
+
+            WindowSlotEntry* GetSlots()
+            {
+                if (!ptr) return nullptr;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                return *reinterpret_cast<WindowSlotEntry**>(base + kSlotsBaseOff);
+            }
+
+            uint32_t GetCount()
+            {
+                if (!ptr) return 0;
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                uint32_t flagsCount = *reinterpret_cast<uint32_t*>(base + kFlagsCountOff);
+                return (flagsCount & 0x7FFFFFFF);
+            }
+
+            fox::ui::Window* GetChildAt(uint32_t index)
+            {
+                if (!ptr) return nullptr;
+
+                auto base = reinterpret_cast<uint8_t*>(ptr);
+                auto slots = GetSlots();
+                if (!slots) return nullptr;
+
+                uint32_t headIdx = *reinterpret_cast<uint32_t*>(base + kHeadIdxOff);
+                if (headIdx == 0xFFFFFFFFu) return nullptr;
+
+                uint32_t curIdx = headIdx;
+                uint32_t curPos = 0;
+
+                while (curIdx != 0xFFFFFFFFu)
+                {
+                    WindowSlotEntry* e = &slots[curIdx];
+                    auto slotObj = e->slotObj;
+
+                    // first qword of slotObj is the child window (via Window::AddChild semantics)
+                    auto childPtrPtr = reinterpret_cast<void**>(slotObj);
+                    auto childWin = childPtrPtr ? reinterpret_cast<fox::ui::Window*>(*childPtrPtr) : nullptr;
+
+                    if (curPos == index)
+                        return childWin;
+
+                    curIdx = e->nextIdx;
+                    ++curPos;
+                }
+
+                return nullptr;
+            }
+        };
+        
+        static constexpr uint32_t kRootLayoutSid = 0x7FC4EBDD; // 2143611869
+        static std::string GetTypeFor(void* val)
+        {
+            if (!val)
+                return "Null";
+
+            void* objVtbl = *reinterpret_cast<void**>(val);
+
+            if (objVtbl == g_WindowVtbl)
+            {
+                return "Window";
+            }
+            if (objVtbl == g_LayoutVtbl)
+            {
+                return "Layout";
+            }
+            if (objVtbl == g_ModelVtbl)
+            {
+                return "Model";
+            }
+            if (objVtbl == g_ModelNodeCommonlVtbl)
+            {
+                return "ModelNodeCommon";
+            }
+            if (objVtbl == g_ModelNodeMeshlVtbl)
+            {
+                return "ModelNodeMesh";
+            }
+            if (objVtbl == g_ModelNodeStencilVtbl)
+            {
+                return "ModelNodeStencil";
+            }
+            if (objVtbl == g_ModelNodeLineVtbl)
+            {
+                return "ModelNodeLine";
+            }
+            if (objVtbl == g_ModelNodeTextVtbl)
+            {
+                return "ModelNodeText";
+            }
+            if (objVtbl == g_ModelNodeVtbl)
+            {
+                return "ModelNode";
+            }
+
+            return fmt::format("Unknown ({:p})", objVtbl);
+        }
+
+        static fox::ui::LayoutComponent* GetWindowRootLayoutComponent(fox::ui::Window* window)
+        {
+            if (!window) return nullptr;
+            auto base = reinterpret_cast<uint8_t*>(window);
+            return *reinterpret_cast<fox::ui::LayoutComponent**>(base + 0x28);
+        }
+
+        static fox::ui::LayoutComponent* GetParentComponent(fox::ui::LayoutComponent* window)
+        {
+            if (!window) return nullptr;
+            auto base = reinterpret_cast<uint8_t*>(window);
+            return *reinterpret_cast<fox::ui::LayoutComponent**>(base + 0x38);
+        }
+
+
+        static uint32_t GetComponentChildCount(void* comp)
+        {
+            if (!comp) return 0;
+            auto base = reinterpret_cast<uint8_t*>(comp);
+            return *reinterpret_cast<uint32_t*>(base + 0x10);
+        }
+
+        static fox::ui::LayoutComponent** GetComponentChildArray(void* comp)
+        {
+            if (!comp) return nullptr;
+            auto base = reinterpret_cast<uint8_t*>(comp);
+            return *reinterpret_cast<fox::ui::LayoutComponent***>(base + 0x18);
+        }
+
+        static fox::ui::LayoutComponent* GetComponentParent(void* comp)
+        {
+            if (!comp) return nullptr;
+            auto base = reinterpret_cast<uint8_t*>(comp);
+            return *reinterpret_cast<fox::ui::LayoutComponent**>(base + 0x38);
+        }
+
+        static const void* GetComponentPortNode(void* comp) // fox::ui::ModelNode const*
+        {
+            if (!comp) return nullptr;
+            auto base = reinterpret_cast<uint8_t*>(comp);
+            return *reinterpret_cast<void* const*>(base + 0x40);
+        }
+
+        static bool GetNodeLocalVisible(const fox::ui::ModelNode* node)
+        {
+            if (!node) return false;
+            auto base = reinterpret_cast<const uint8_t*>(node);
+            auto flags = *reinterpret_cast<const uint16_t*>(base + 0x8);
+            return (flags & 0x1) != 0;
+        }
+
+        static bool GetModelLocalVisible(fox::ui::Model* model)
+        {
+            if (!model) return false;
+            auto base = reinterpret_cast<uint8_t*>(model);
+            auto node = *reinterpret_cast<void**>(base + 0x80);
+            return GetNodeLocalVisible(node);
+        }
 
         static uint32_t GetModelNodeCountRaw(fox::ui::Model* model)
         {
@@ -102,80 +423,316 @@ namespace IHHook
             return *reinterpret_cast<fox::ui::Model***>(base + 0xC8);
         }
 
-        static fox::ui::Layout* GetWindowRootLayout(fox::ui::Window* window)
+        static bool GetModelLocalVisible(const fox::ui::Model* model)
         {
-            if (!window) return nullptr;
-            auto base = reinterpret_cast<uint8_t*>(window);
-            return *reinterpret_cast<fox::ui::Layout**>(base + 0x28);
+            if (!model) return false;
+            auto base = reinterpret_cast<const uint8_t*>(model);
+            auto node = *reinterpret_cast<void* const*>(base + 0x80);
+            return GetNodeLocalVisible(node);
         }
 
+        static bool GetNodeWorldVisible(const fox::ui::ModelNode* node)
+        {
+            if (!node) return false;
+
+            // 1) local bit on self
+            auto base  = reinterpret_cast<const uint8_t*>(node);
+            auto flags = *reinterpret_cast<const uint16_t*>(base + 0x8);
+            if ((flags & 0x1) == 0)
+                return false;
+
+            // 2) walk parents via [+0x10], same as asm
+            const void* parent = *reinterpret_cast<void* const*>(base + 0x10);
+            int depth = 0;
+
+            while (parent && depth < 64) // depth guard in case of corrupted graphs
+            {
+                auto pBase  = reinterpret_cast<const uint8_t*>(parent);
+                auto pFlags = *reinterpret_cast<const uint16_t*>(pBase + 0x8);
+                if ((pFlags & 0x1) == 0)
+                    return false;
+
+                parent = *reinterpret_cast<void* const*>(pBase + 0x10);
+                ++depth;
+            }
+
+            // if you hit nullptr parent, all bits in chain were 1 -> visible
+            // if you break due to depth limit, treat as not visible to be safe
+            return parent == nullptr;
+        }
+
+        static bool GetModelWorldVisible(const fox::ui::Model* model)
+        {
+            if (!model) return false;
+            auto base = reinterpret_cast<const uint8_t*>(model);
+            auto node = *reinterpret_cast<void* const*>(base + 0x80);
+            return GetNodeWorldVisible(node);
+        }
+
+        
+        static bool GetLayoutWorldVisible(const fox::ui::Layout* layout)
+        {
+            if (!layout) return false;
+            auto* comp = reinterpret_cast<fox::ui::LayoutComponent*>(
+                const_cast<fox::ui::Layout*>(layout));
+
+            const void* portNode = GetComponentPortNode(comp);
+            if (!portNode) return false;
+
+            return GetNodeWorldVisible(portNode);
+        }
+
+        static bool GetLayoutComponentWorldVisible(const fox::ui::LayoutComponent* comp)
+        {
+            if (!comp) return false;
+            const void* portNode = GetComponentPortNode(const_cast<fox::ui::LayoutComponent*>(comp));
+            if (!portNode) return false;
+
+            return GetNodeWorldVisible(portNode);
+        }
+
+        // bool IsValid(fox::ui::LayoutComponent* self) //TODO Might be useless to us
+        // {
+        //     auto* first = *reinterpret_cast<longlong**>(self + 0x18);
+        //     auto* last  = first + *reinterpret_cast<uint32_t*>(self + 0x10);
+        //
+        //     while (true)
+        //     {
+        //         if (first == last)
+        //             return true;   // all used entries non-null
+        //
+        //         if (*first == 0)
+        //             break;         // found a nullptr in the active range
+        //
+        //         ++first;
+        //     }
+        //
+        //     return false;
+        // }
+
+        static fox::StrCode32 GetLayoutSid(fox::ui::Layout* layout)
+        {
+            if (!layout) return 0;
+            auto base = reinterpret_cast<uint8_t*>(layout);
+            return *reinterpret_cast<fox::StrCode32*>(base + 0x20);
+        }
+
+        static fox::StrCode32 GetModelNodeNameSid(const fox::ui::ModelNode* node)
+        {
+            if (!node) return 0;
+
+            auto base = reinterpret_cast<const uint8_t*>(node);
+            return *reinterpret_cast<const fox::StrCode32*>(base + 0x6C);
+        }
+
+        static uint8_t GetModelNodeTypeRaw(const fox::ui::ModelNode* node)
+        {
+            if (!node) return 0xFF;
+
+            auto base = reinterpret_cast<const uint8_t*>(node);
+            return *reinterpret_cast<const uint8_t*>(base + 0x72);
+        }
+
+        enum ModelNodeType : uint8_t
+        {
+            MODEL_NODE_TYPE_ROOT = 0x0,	
+            MODEL_NODE_TYPE_COMMON = 0x1,
+            MODEL_NODE_TYPE_MESH = 0x2,
+            MODEL_NODE_TYPE_TEXT = 0x3,
+            MODEL_NODE_TYPE_STENCIL = 0x4,
+            MODEL_NODE_TYPE_LINE = 0x5,
+            MODEL_NODE_TYPE_INVALID = 0x6
+            // others unknown for now
+        };
+
+        std::string GetModelNodeHumanReadableType(const fox::ui::ModelNode* node)
+        {
+            switch (GetModelNodeTypeRaw(node))
+            {
+                case MODEL_NODE_TYPE_ROOT: return "ROOT";
+                case MODEL_NODE_TYPE_COMMON: return "COMMON";
+                case MODEL_NODE_TYPE_MESH: return "MESH";
+                case MODEL_NODE_TYPE_TEXT: return "TEXT";
+                case MODEL_NODE_TYPE_STENCIL: return "STENCIL";
+                case MODEL_NODE_TYPE_LINE: return "LINE";
+                default: return "INVALID";
+            }
+        }
+
+        static ModelNodeType GetModelNodeType(const fox::ui::ModelNode* node)
+        {
+            return static_cast<ModelNodeType>(GetModelNodeTypeRaw(node));
+        }
+
+        static void DumpNodeBinaryRaw(const fox::ui::ModelNode* node, int maxBytes = 0x40)
+        {
+            if (!node) return;
+            auto base = reinterpret_cast<const uint8_t*>(node);
+            auto bin  = *reinterpret_cast<const uint8_t* const*>(base + 0x60);
+            if (!bin) return;
+
+            ModelNodeType type = GetModelNodeType(node);
+            spdlog::info("    [BIN] node={} type={} bin={}",
+                         static_cast<const void*>(node),
+                         static_cast<int>(type),
+                         static_cast<const void*>(bin));
+
+            // For now: dumb hex dump by type, then line it up with uif.bt manually.
+            int len = maxBytes;
+            std::string hex;
+            for (int i = 0; i < len; ++i) {
+                hex += fmt::format("{:02X} ", bin[i]);
+            }
+            spdlog::info("      [BIN RAW] {}", hex);
+        }
+
+        static bool GetWindowWorldVisible(const fox::ui::Window* w)
+        {
+            if (!w) return false;
+
+            auto* rootComp = GetWindowRootLayoutComponent(const_cast<fox::ui::Window*>(w));
+            if (!rootComp) return false;
+
+            const void* portNode = GetComponentPortNode(rootComp);
+            if (!portNode) return false;
+
+            return GetNodeWorldVisible(portNode);
+        }
+
+        struct WindowChildren
+        {
+            static constexpr size_t kFlagsCountOff = 0x48;
+            static constexpr size_t kHeadIdxOff = 0x50;
+            static constexpr size_t kTailIdxOff = 0x54;
+            static constexpr size_t kFreeIdxOff = 0x58;
+            static constexpr size_t kSlotsBaseOff = 0x60;
+
+            static WindowSlotEntry* GetSlots(fox::ui::Window* w)
+            {
+                if (!w) return nullptr;
+                auto base = reinterpret_cast<uint8_t*>(w);
+                return *reinterpret_cast<WindowSlotEntry**>(base + kSlotsBaseOff);
+            }
+
+            static uint32_t GetCount(fox::ui::Window* w)
+            {
+                if (!w) return 0;
+                auto base = reinterpret_cast<uint8_t*>(w);
+                uint32_t flagsCount = *reinterpret_cast<uint32_t*>(base + kFlagsCountOff);
+                return (flagsCount & 0x7FFFFFFF);
+            }
+
+            static fox::ui::Window* GetChildAt(fox::ui::Window* w, uint32_t index)
+            {
+                if (!w) return nullptr;
+
+                auto base = reinterpret_cast<uint8_t*>(w);
+                auto slots = GetSlots(w);
+                if (!slots) return nullptr;
+
+                uint32_t headIdx = *reinterpret_cast<uint32_t*>(base + kHeadIdxOff);
+                if (headIdx == 0xFFFFFFFFu) return nullptr;
+
+                uint32_t curIdx = headIdx;
+                uint32_t curPos = 0;
+
+                while (curIdx != 0xFFFFFFFFu)
+                {
+                    WindowSlotEntry* e = &slots[curIdx];
+                    void* slotObj = e->slotObj;
+                    fox::ui::Window* childWin = nullptr;
+
+                    if (slotObj)
+                    {
+                        // Case 1: slotObj itself is a Window*
+                        if (GetTypeFor(slotObj) == "Window")
+                        {
+                            childWin = reinterpret_cast<fox::ui::Window*>(slotObj);
+                        }
+                        else
+                        {
+                            // Case 2: slotObj is a pointer to a Window*
+                            auto* asPtrToPtr = reinterpret_cast<void**>(slotObj);
+                            void* maybeWin = asPtrToPtr ? *asPtrToPtr : nullptr;
+
+                            if (maybeWin && GetTypeFor(maybeWin) == "Window")
+                                childWin = reinterpret_cast<fox::ui::Window*>(maybeWin);
+                        }
+                    }
+
+                    if (curPos == index)
+                        return childWin;
+
+                    curIdx = e->nextIdx;
+                    ++curPos;
+                }
+
+                return nullptr;
+            }
+        };
+        
         static std::string FoxStringToStd(const fox::String* s)
         {
             if (!s || !s->cString)
                 return {};
 
-            // Length is a 64-bit field, but negative values are sentinels.
-            const auto raw = static_cast<int64_t>(s->length);
+            auto raw = static_cast<int64_t>(s->length);
 
-            // Reject sentinel / insane lengths outright.
-            // These are not real strings.
-            if (raw <= 0 || raw > 0x10000) // 64KB clamp
-                return {};
+            if (raw <= 0 || raw > 0x10000)
+                return std::string(s->cString);  // strlen fallback
 
-            // Normal case: sane positive length.
             return std::string(s->cString, static_cast<size_t>(raw));
         }
+        
+        static std::string BytesToHex(const void* data, size_t size)
+        {
+            if (!data || size == 0)
+                return {};
+
+            const uint8_t* p = static_cast<const uint8_t*>(data);
+            std::string out;
+            out.reserve(size * 3);
+
+            static const char* hex = "0123456789ABCDEF";
+
+            for (size_t i = 0; i < size; ++i)
+            {
+                if (i)
+                    out.push_back(' ');
+
+                uint8_t b = p[i];
+                out.push_back(hex[b >> 4]);
+                out.push_back(hex[b & 0x0F]);
+            }
+
+            return out;
+        }
+
+        static std::string FoxStringToHex(const fox::String* s, size_t maxBytes = 64)
+        {
+            if (!s || !s->cString)
+                return {};
+
+            const uint8_t* bytes = reinterpret_cast<const uint8_t*>(s->cString);
+            size_t len = 0;
+
+            auto raw = static_cast<int64_t>(s->length);
+
+            if (raw > 0 && raw <= static_cast<int64_t>(maxBytes))
+                len = static_cast<size_t>(raw);
+            else if (raw > 0)
+                len = static_cast<size_t>(std::min<int64_t>(raw, maxBytes));
+            else
+                len = maxBytes; // unknown / sentinel length, just dump prefix
+
+            return BytesToHex(bytes, len);
+        }
+
 
         // ---------------------------------------------------------------------
         // Hooks
         // ---------------------------------------------------------------------
 
-        static void SetLayoutOwner_NoLock(fox::ui::Layout* layout,
-                                  fox::ui::Window* w,
-                                  const char* reason)
-        {
-            if (!layout || !w)
-                return;
-
-            g_layoutToWindow[layout] = w;
-
-            auto& info = g_windows[w];
-            info.window = w;
-
-            auto& lv = info.layouts;
-            if (std::find(lv.begin(), lv.end(), layout) == lv.end())
-                lv.push_back(layout);
-
-            spdlog::info("[LAYOUT OWNER] layout={} window={} reason={}",
-                         static_cast<const void*>(layout),
-                         static_cast<const void*>(w),
-                         reason ? reason : "");
-        }
-        
-        static void BindHandleLayoutsToWindow_NoLock(fox::ui::WindowHandle* handle,
-                                             fox::ui::Window* w)
-        {
-            if (!handle || !w)
-                return;
-
-            auto it = g_handleLayouts.find(handle);
-            if (it == g_handleLayouts.end())
-                return;
-
-            auto& layouts = it->second;
-            auto& info = g_windows[w];
-            info.window       = w;
-            info.windowHandle = handle;
-
-            for (auto* L : layouts)
-            {
-                if (!L)
-                    continue;
-
-                SetLayoutOwner_NoLock(L, w, "BindHandleLayoutsToWindow");
-            }
-        }
-        
         static void DumpModelNodes_Direct(void* modelPtr, const std::string& indent)
         {
             auto* model = reinterpret_cast<fox::ui::Model*>(modelPtr);
@@ -184,12 +741,14 @@ namespace IHHook
             uint32_t count = GetModelNodeCountRaw(model);
             auto** nodes = GetModelNodeArrayTyped(model);
 
-            spdlog::info(
-                "{}[MODEL] model={} nodeCount={}",
-                indent,
-                static_cast<const void*>(model),
-                count
-            );
+            // spdlog::info(
+            //     "{}[MODEL] model={} visible={} nodeCount={} realType={}",
+            //     indent,
+            //     static_cast<const void*>(model),
+            //     GetModelWorldVisible(model),
+            //     count,
+            //     GetTypeFor(model)
+            // );
 
             if (!nodes) return;
 
@@ -224,104 +783,31 @@ namespace IHHook
                 if (!shortText.empty())
                 {
                     spdlog::info(
-                        "{}[NODE] idx={} node={} name32=#{:08X} text=\"{}\"",
+                        "{}[NODE] idx={} node={} visible={} type={} sid=#{:08X} realType={} text=\"{}\"",
                         nodeIndent,
                         static_cast<int>(i),
                         static_cast<const void*>(node),
-                        nameSid,
+                        GetNodeWorldVisible(node),
+                        GetModelNodeHumanReadableType(node),
+                        GetModelNodeNameSid(node),
+                        GetTypeFor(node),
                         shortText
                     );
                 }
                 else
                 {
                     spdlog::info(
-                        "{}[NODE] idx={} node={} name32=#{:08X}",
+                        "{}[NODE] idx={} node={} visible={} type={} sid=#{:08X} realType={}",
                         nodeIndent,
                         static_cast<int>(i),
                         static_cast<const void*>(node),
-                        nameSid
+                        GetNodeWorldVisible(node),
+                        GetModelNodeHumanReadableType(node),
+                        GetModelNodeNameSid(node),
+                        GetTypeFor(node)
                     );
                 }
             }
-        }
-
-        static void DumpLayoutModelsAndNodes()
-        {
-            std::vector<fox::ui::Layout*> layoutsCopy;
-            {
-                std::lock_guard<std::mutex> lock(g_uiMutex);
-                layoutsCopy = g_seenLayouts;
-            }
-
-            spdlog::info("========== UI LAYOUT / MODEL / NODE TREE ==========");
-            spdlog::info("  layouts tracked: {}", layoutsCopy.size());
-
-            for (auto* layout : layoutsCopy)
-            {
-                if (!layout)
-                    continue;
-
-                void** modelArr = nullptr;
-                uint32_t mCount = 0;
-                fox::ui::Window* ownerWindow = nullptr;
-                std::string winName;
-
-                {
-                    std::lock_guard<std::mutex> lock(g_uiMutex);
-
-                    auto* base = reinterpret_cast<uint8_t*>(layout);
-                    modelArr = *reinterpret_cast<void***>(base + 0xC8);
-                    mCount = *reinterpret_cast<uint32_t*>(base + 0xC0);
-
-                    auto itW = g_layoutToWindow.find(layout);
-                    if (itW != g_layoutToWindow.end())
-                    {
-                        ownerWindow = itW->second;
-                        auto itInfo = g_windows.find(ownerWindow);
-                        if (itInfo != g_windows.end())
-                            winName = itInfo->second.windowName;
-                    }
-                }
-
-                spdlog::info(
-                    "[LAYOUT] layout={} modelArr={} modelCount={} ownerWindow={} windowName=\"{}\"",
-                    static_cast<const void*>(layout),
-                    static_cast<const void*>(modelArr),
-                    mCount,
-                    static_cast<const void*>(ownerWindow),
-                    winName
-                );
-
-                if (!modelArr || !mCount)
-                {
-                    spdlog::info("  [MODEL] <none>");
-                    continue;
-                }
-
-                for (uint32_t i = 0; i < mCount; ++i)
-                {
-                    void* modelPtr = modelArr[i];
-                    if (!modelPtr)
-                        continue;
-
-                    spdlog::info(
-                        "  [MODEL IDX] {} -> {}",
-                        i,
-                        static_cast<const void*>(modelPtr)
-                    );
-
-                    DumpModelNodes_Direct(modelPtr, "    ");
-                }
-            }
-
-            spdlog::info("========== END UI LAYOUT / MODEL / NODE TREE ==========");
-        }
-        
-        static bool IsKnownLayout_NoLock(fox::ui::Layout* layout)
-        {
-            if (!layout)
-                return false;
-            return g_seenLayoutsSet.find(layout) != g_seenLayoutsSet.end();
         }
 
         static void DumpLayoutForWindow(fox::ui::Layout* layout,
@@ -331,7 +817,7 @@ namespace IHHook
         {
             if (!layout)
                 return;
-            
+
             // {
             //     std::lock_guard<std::mutex> lock(g_uiMutex);
             //     if (!IsKnownLayout_NoLock(layout))
@@ -341,7 +827,7 @@ namespace IHHook
             //         return;
             //     }
             // }
-            
+
             auto* base = reinterpret_cast<uint8_t*>(layout);
             void** modelArr = *reinterpret_cast<void***>(base + 0xC8);
             uint32_t mCount = *reinterpret_cast<uint32_t*>(base + 0xC0);
@@ -349,13 +835,14 @@ namespace IHHook
             std::string indent(depth * 2, ' ');
 
             spdlog::info(
-                "{}[LAYOUT] layout={} modelArr={} modelCount={} ownerWindow={} windowName=\"{}\"",
+                "{}[LAYOUT] layout={} modelArr={} modelCount={} ownerWindow={} windowName=\"{}\" realType={}",
                 indent,
                 static_cast<const void*>(layout),
                 static_cast<const void*>(modelArr),
                 mCount,
                 static_cast<const void*>(ownerWindow),
-                windowName
+                windowName,
+                GetTypeFor(layout)
             );
 
             if (!modelArr || !mCount)
@@ -381,6 +868,52 @@ namespace IHHook
             }
         }
 
+        static void SetLayoutOwner_NoLock(fox::ui::Layout* layout,
+                                          fox::ui::Window* w,
+                                          const char* reason)
+        {
+            if (!layout || !w)
+                return;
+
+            g_layoutToWindow[layout] = w;
+
+            auto& info = g_windows[w];
+            info.window = w;
+
+            auto& lv = info.layouts;
+            if (std::find(lv.begin(), lv.end(), layout) == lv.end())
+                lv.push_back(layout);
+
+            spdlog::debug("[LAYOUT OWNER] layout={} window={} reason={}",
+                          static_cast<const void*>(layout),
+                          static_cast<const void*>(w),
+                          reason ? reason : "");
+        }
+
+        static void BindHandleLayoutsToWindow_NoLock(fox::ui::WindowHandle* handle,
+                                                     fox::ui::Window* w)
+        {
+            if (!handle || !w)
+                return;
+
+            auto it = g_handleLayouts.find(handle);
+            if (it == g_handleLayouts.end())
+                return;
+
+            auto& layouts = it->second;
+            auto& info = g_windows[w];
+            info.window = w;
+            info.windowHandle = handle;
+
+            for (auto* L : layouts)
+            {
+                if (!L)
+                    continue;
+
+                SetLayoutOwner_NoLock(L, w, "BindHandleLayoutsToWindow");
+            }
+        }
+
         static void DumpWindowRecursive(fox::ui::Window* w,
                                         const std::unordered_map<fox::ui::Window*, WindowInfo>& windows,
                                         int depth)
@@ -393,7 +926,7 @@ namespace IHHook
             std::string indent(depth * 2, ' ');
 
             spdlog::info(
-                "{}[WIN] window={} parent={} handle={} func={} name=\"{}\" anchorLayout={} anchorPort={}",
+                "{}[WIN] window={} parent={} handle={} func={} name=\"{}\" anchorLayout={} anchorPort={} realType={}",
                 indent,
                 static_cast<const void*>(info.window),
                 static_cast<const void*>(info.parentWindow),
@@ -401,7 +934,8 @@ namespace IHHook
                 static_cast<const void*>(info.windowFunction),
                 info.windowName,
                 static_cast<const void*>(info.attachLayout),
-                info.attachAnchor
+                info.attachAnchor,
+                GetTypeFor(w)
             );
 
             // Layouts belonging to this window
@@ -443,7 +977,7 @@ namespace IHHook
 
             spdlog::info("========== END UI WINDOW / LAYOUT / MODEL TREE ==========");
         }
-        
+
         static void TrackLayout_NoLock(fox::ui::Layout* layout)
         {
             if (!layout) return;
@@ -454,13 +988,29 @@ namespace IHHook
                 spdlog::info("[TRACK LAYOUT] layout={}", static_cast<const void*>(layout));
             }
         }
-        
+
         static void TrackLayout(fox::ui::Layout* layout)
         {
             if (!layout) return;
 
             std::lock_guard<std::mutex> lock(g_uiMutex);
             TrackLayout_NoLock(layout);
+        }
+
+        static void TrackWindow_NoLock(fox::ui::Window* w)
+        {
+            if (!w) return;
+            if (g_seenWindowSet.insert(w).second)
+            {
+                g_seenWindows.push_back(w);
+                spdlog::info("[TRACK WINDOW] window={}", static_cast<const void*>(w));
+            }
+        }
+
+        static void TrackWindow(fox::ui::Window* w)
+        {
+            std::lock_guard<std::mutex> lock(g_uiMutex);
+            TrackWindow_NoLock(w);
         }
 
         // Scan a layoutInfo blob for pointers that match known Layout*
@@ -498,13 +1048,14 @@ namespace IHHook
 
             {
                 std::lock_guard<std::mutex> lock(g_uiMutex);
-                layoutsCopy       = g_seenLayouts;
+                layoutsCopy = g_seenLayouts;
                 layoutToWindowCopy = g_layoutToWindow;
             }
 
             spdlog::info("========== ORPHAN LAYOUTS (no owning Window) ==========");
-            spdlog::info("  orphans tracked: {} / {}", layoutsCopy.size() - layoutToWindowCopy.size(), layoutsCopy.size());
-            
+            spdlog::info("  orphans tracked: {} / {}", layoutsCopy.size() - layoutToWindowCopy.size(),
+                         layoutsCopy.size());
+
             for (auto* layout : layoutsCopy)
             {
                 if (!layout)
@@ -516,23 +1067,17 @@ namespace IHHook
 
                 DumpLayoutForWindow(layout, nullptr, "<ORPHAN>", 0);
             }
-            
+
             spdlog::info("========== END ORPHAN LAYOUTS ==========");
         }
 
-        static void DumpUnifiedViewTree()
-        {
-            DumpWindowAndLayoutTree(); // Windows + their layouts + models + nodes
-            DumpOrphanLayouts();       // Layouts that never mapped to a Window
-        }
-
         static void BucketLayoutForIfaceAndHandle_NoLock(const void* ifaceOrHandle,
-                                                 fox::ui::Layout* layout)
+                                                         fox::ui::Layout* layout)
         {
             if (!ifaceOrHandle || !layout)
                 return;
 
-            auto* iface  = reinterpret_cast<const fox::ui::WindowInterface*>(ifaceOrHandle);
+            auto* iface = reinterpret_cast<const fox::ui::WindowInterface*>(ifaceOrHandle);
             auto* handle = reinterpret_cast<fox::ui::WindowHandle*>(const_cast<void*>(ifaceOrHandle));
 
             auto pushUnique = [layout](auto& vec)
@@ -558,7 +1103,7 @@ namespace IHHook
             if (!w)
                 return;
 
-            auto* root = GetWindowRootLayout(w); // window + 0x28
+            auto* root = GetWindowRootLayoutComponent(w); // window + 0x28
             if (!root)
                 return;
 
@@ -575,6 +1120,240 @@ namespace IHHook
             // Make sure it's tracked & owned
             TrackLayout_NoLock(root);
             SetLayoutOwner_NoLock(root, w, reason ? reason : "RootLayout");
+        }
+
+        static void DumpLayoutComponentRecursive(
+            fox::ui::LayoutComponent* comp,
+            int depth,
+            std::unordered_set<fox::ui::LayoutComponent*>& visited)
+        {
+            if (!comp) return;
+            if (!visited.insert(comp).second) return; // already printed in this walk
+
+            std::string indent(depth * 2, ' ');
+
+            void* vtbl = *reinterpret_cast<void**>(comp);
+            auto* parent = GetComponentParent(comp);
+            auto* portNode = reinterpret_cast<const fox::ui::ModelNode*>(GetComponentPortNode(comp));
+
+            uint32_t childCount = GetComponentChildCount(comp);
+            auto** children = GetComponentChildArray(comp);
+
+            uint32_t portSid = 0;
+            std::string portText;
+
+            if (portNode)
+            {
+                std::lock_guard<std::mutex> lock(g_uiMutex);
+
+                auto itName = g_nodeNameByPtr.find(const_cast<fox::ui::ModelNode*>(portNode));
+                if (itName != g_nodeNameByPtr.end())
+                    portSid = itName->second;
+
+                auto itText = g_nodeTextByPtr.find(const_cast<fox::ui::ModelNode*>(portNode));
+                if (itText != g_nodeTextByPtr.end())
+                    portText = itText->second;
+            }
+
+            if (portText.size() > 80)
+            {
+                portText.resize(80);
+                portText += "...";
+            }
+
+            if (vtbl == g_LayoutVtbl)
+            {
+                auto* layout = reinterpret_cast<fox::ui::Layout*>(comp);
+
+                uint32_t sid = GetLayoutSid(layout);
+                spdlog::info(
+                    "{}[{}] comp={} visible={} type={} sid=#{:08X} parent={} children={} portNode={} portSid=#{:08X} portText=\"{}\"",
+                    indent,
+                    (sid == kRootLayoutSid ? "ROOT LAYOUT" : "LAYOUT"), 
+                    static_cast<const void*>(layout),
+                    GetLayoutWorldVisible(layout),
+                    GetTypeFor(layout),
+                    sid,
+                    static_cast<const void*>(parent),
+                    childCount,
+                    static_cast<const void*>(portNode),
+                    portSid,
+                    portText
+                );
+            }
+            else if (vtbl == g_ModelVtbl)
+            {
+                auto* model = reinterpret_cast<fox::ui::Model*>(comp);
+                uint32_t nodeCount = GetModelNodeCountRaw(model);
+
+                spdlog::info(
+                    "{}[MODEL] comp={} visible={} type={} sid=#{:08X} parent={} children={} nodes={} portNode={} portSid=#{:08X} portText=\"{}\"",
+                    indent,
+                    static_cast<const void*>(model),
+                    GetModelWorldVisible(model),
+                    GetTypeFor(model),
+                    GetLayoutSid(model),
+                    static_cast<const void*>(parent),
+                    childCount,
+                    nodeCount,
+                    static_cast<const void*>(portNode),
+                    portSid,
+                    portText
+                );
+
+                // Only here do we introspect nodes
+                DumpModelNodes_Direct(model, indent);
+            }
+            else
+            {
+                spdlog::info(
+                    "{}[COMP] comp={} type={} parent={} children={} portNode={} portSid=#{:08X} portText=\"{}\"",
+                    indent,
+                    static_cast<const void*>(comp),
+                    GetTypeFor(comp),
+                    static_cast<const void*>(parent),
+                    childCount,
+                    static_cast<const void*>(portNode),
+                    portSid,
+                    portText
+                );
+            }
+
+            if (!children || !childCount)
+                return;
+
+            for (uint32_t i = 0; i < childCount; ++i)
+            {
+                auto* child = children[i];
+                if (!child) continue;
+                DumpLayoutComponentRecursive(child, depth + 1, visited);
+            }
+        }
+
+        static void DumpRawWindowRecursive(
+            fox::ui::Window* w,
+            const std::unordered_map<fox::ui::Window*, std::vector<fox::ui::Window*>>& slotChildren,
+            int depth,
+            std::unordered_set<fox::ui::Window*>& visited)
+        {
+            if (!w) return;
+            if (!visited.insert(w).second) return; // avoid cycles
+
+            std::string indent(depth * 2, ' ');
+
+            uint32_t slotChildCount = WindowChildren::GetCount(w);
+            auto* rootComp = GetWindowRootLayoutComponent(w);
+
+            spdlog::info(
+                "{}[WINDOW] window={} visible={} type={} sid=#{:08X} slotChildCount={} rootComp={} rootType={}",
+                indent,
+                static_cast<const void*>(w),
+                GetWindowWorldVisible(w),
+                GetTypeFor(w),
+                GetLayoutSid(w),
+                slotChildCount,
+                static_cast<const void*>(rootComp),
+                GetTypeFor(rootComp));
+
+            if (rootComp)
+            {
+                std::unordered_set<fox::ui::LayoutComponent*> visitedComp;
+                DumpLayoutComponentRecursive(rootComp, depth + 1, visitedComp);
+            }
+            else
+            {
+                spdlog::info("{}  [COMP ROOT] <none>", indent);
+            }
+
+            auto it = slotChildren.find(w);
+            if (it == slotChildren.end())
+                return;
+
+            for (auto* child : it->second)
+                DumpRawWindowRecursive(child, slotChildren, depth + 1, visited);
+        }
+
+        static void DumpWindowSlotViewTreeFromSeenWindows()
+        {
+            std::vector<fox::ui::Window*> windows;
+            std::unordered_set<fox::ui::Window*> knownWindows;
+
+            {
+                std::lock_guard<std::mutex> lock(g_uiMutex);
+                windows = g_seenWindows;
+                knownWindows = g_seenWindowSet;
+            }
+
+            spdlog::info("========== WINDOW SLOT / COMPONENT TREE (F10, raw) ==========");
+            spdlog::info("  windows tracked (seen): {}", windows.size());
+
+            if (windows.empty())
+            {
+                spdlog::info("  <no windows in g_seenWindows>");
+                spdlog::info("========== END WINDOW SLOT / COMPONENT TREE (F10, raw) ==========");
+                return;
+            }
+
+            std::unordered_map<fox::ui::Window*, std::vector<fox::ui::Window*>> slotChildren;
+            std::unordered_map<fox::ui::Window*, fox::ui::Window*> slotParent;
+
+            // Build parent/child purely from WindowSlots, but clamp to the seen-window set
+            for (auto* w : windows)
+            {
+                if (!w) continue;
+
+                uint32_t count = WindowChildren::GetCount(w);
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    auto* child = WindowChildren::GetChildAt(w, i);
+                    if (!child) continue;
+                    if (!knownWindows.count(child)) continue; // F10 = “from collected windows alone”
+                    if (child == w) continue;
+
+                    auto& vec = slotChildren[w];
+                    if (std::find(vec.begin(), vec.end(), child) == vec.end())
+                        vec.push_back(child);
+
+                    if (!slotParent.count(child))
+                        slotParent[child] = w;
+                }
+            }
+
+            // Roots = seen windows that never appear as a child in this slot graph
+            std::vector<fox::ui::Window*> roots;
+            roots.reserve(windows.size());
+            for (auto* w : windows)
+            {
+                if (!w) continue;
+                if (slotParent.find(w) == slotParent.end())
+                    roots.push_back(w);
+            }
+
+            if (roots.empty())
+                roots = windows; // degenerate case: cycles or no parent info
+
+            std::unordered_set<fox::ui::Window*> visited;
+            for (auto* root : roots)
+                DumpRawWindowRecursive(root, slotChildren, 0, visited);
+
+            // Any seen window not hit via the slot graph gets dumped as an orphan
+            for (auto* w : windows)
+            {
+                if (!w) continue;
+                if (visited.count(w)) continue;
+
+                spdlog::info("[WIN_ORPHAN] window={} (no slot parent/children)",
+                             static_cast<const void*>(w));
+
+                auto* rootComp = GetWindowRootLayoutComponent(w);
+                if (rootComp)
+                {
+                    std::unordered_set<fox::ui::LayoutComponent*> visitedComp;
+                    DumpLayoutComponentRecursive(rootComp, 1, visitedComp);
+                }
+            }
+
+            spdlog::info("========== END WINDOW SLOT / COMPONENT TREE (F10, raw) ==========");
         }
 
         // ---------------------------------------------------------------------
@@ -682,7 +1461,7 @@ namespace IHHook
                 }
             }
 
-            spdlog::info("[LayoutGetLayout] retLayout={} self={} layoutId={}",
+            spdlog::debug("[LayoutGetLayout] retLayout={} self={} layoutId={}",
                          static_cast<const void*>(retLayout),
                          static_cast<const void*>(self),
                          layoutId);
@@ -728,18 +1507,23 @@ namespace IHHook
                 }
             }
 
-            spdlog::debug("[GetWindowInterfaceLayout] self={} layout={}",
+            spdlog::debug("[GetWindowInterfaceLayout] self={} layout={} type={} retType={}",
                           static_cast<const void*>(self),
-                          static_cast<const void*>(layout));
+                          static_cast<const void*>(layout), GetTypeFor(self), GetTypeFor(layout));
 
             return layout;
         }
 
-        
+
         // Model discovery
-        void* __fastcall GetModelWrapperHook(void* layout, void** outModel, uint32_t wantRoot)
+        fox::ui::Model* __fastcall GetModelWrapperHook(fox::ui::Layout* layout, fox::ui::Model** outModel,
+                                                       fox::StrCode32 strCode)
         {
-            return GetModelWrapper(layout, outModel, wantRoot);
+            auto retModel = GetModelWrapper(layout, outModel, strCode);
+
+            spdlog::debug("[GetModelWrapperHook] retModel={} layout={} sid32=#{:08X}",
+                         retModel, layout, (uint32_t)strCode);
+            return retModel;
         }
 
         void* __fastcall GetModelNodeFromIndexHook(const void* model, int index)
@@ -771,6 +1555,9 @@ namespace IHHook
         {
             {
                 std::lock_guard<std::mutex> lock(g_uiMutex);
+                auto base = *reinterpret_cast<void**>(self);
+                spdlog::debug("[OnLayoutComponentDestroy] captured LayoutComponent vtbl={} type={}", base,
+                             GetTypeFor(self));
                 g_componentToLayout.erase(reinterpret_cast<fox::ui::LayoutComponent*>(self));
             }
 
@@ -799,7 +1586,7 @@ namespace IHHook
                 info.modelName = name;
             }
 
-            spdlog::info("[NewUiModelSharedPtr] model={} file={} name=#{:08X} flags={}",
+            spdlog::debug("[NewUiModelSharedPtr] model={} file={} name=#{:08X} flags={}",
                          static_cast<void*>(model),
                          static_cast<void*>(file),
                          static_cast<uint32_t>(name),
@@ -832,7 +1619,7 @@ namespace IHHook
                 std::lock_guard<std::mutex> lock(g_uiMutex);
                 g_nodeNameByPtr[self] = name;
             }
-            spdlog::info("[UiModelNodeCtor] node={} name=#{:08X}",
+            spdlog::debug("[UiModelNodeCtor] node={} name=#{:08X}",
                          static_cast<void*>(self),
                          static_cast<uint32_t>(name));
 
@@ -842,6 +1629,12 @@ namespace IHHook
         fox::ui::Layout* __fastcall LayoutCtorHook(fox::ui::Layout* self, uint32_t layoutFlags)
         {
             auto ret = LayoutCtor(self, layoutFlags);
+
+            {
+                std::lock_guard<std::mutex> lock(g_uiMutex);
+                TrackLayout_NoLock(self);
+            }
+
             spdlog::debug("[LayoutCtor] ret={} self={} flags={}",
                           static_cast<void*>(ret),
                           static_cast<void*>(self),
@@ -853,6 +1646,7 @@ namespace IHHook
         fox::ui::Model* __fastcall ModelCtorHook(fox::ui::Model* self, fox::FilePtr* file, fox::StrCode32 name)
         {
             auto ret = ModelCtor(self, file, name);
+
             spdlog::debug("[ModelCtor] ret={} self={} file={} name={}",
                           static_cast<void*>(ret),
                           static_cast<void*>(self),
@@ -894,7 +1688,7 @@ namespace IHHook
                 for (auto& kv : g_handleLayouts)
                 {
                     auto& vec = kv.second;
-                    auto itL  = std::remove(vec.begin(), vec.end(), self);
+                    auto itL = std::remove(vec.begin(), vec.end(), self);
                     if (itL != vec.end())
                         vec.erase(itL, vec.end());
                 }
@@ -903,7 +1697,7 @@ namespace IHHook
                 for (auto& kv : g_ifaceLayouts)
                 {
                     auto& vec = kv.second;
-                    auto itL  = std::remove(vec.begin(), vec.end(), self);
+                    auto itL = std::remove(vec.begin(), vec.end(), self);
                     if (itL != vec.end())
                         vec.erase(itL, vec.end());
                 }
@@ -961,7 +1755,47 @@ namespace IHHook
                 childInfo.parentWindow = selfWindow;
             }
 
+            spdlog::debug("[AddChildWindow] parent={} child={}", static_cast<void*>(selfWindow),
+                         static_cast<void*>(childWindow));
+
             AddChildWindow(selfWindow, childWindow);
+        }
+
+        void __fastcall RemoveChildWindowHook(fox::ui::Window* selfWindow, fox::ui::Window* childWindow)
+        {
+            // Let engine do the real detach first.
+            RemoveChildWindow(selfWindow, childWindow);
+
+            if (!childWindow)
+                return;
+
+            {
+                std::lock_guard<std::mutex> lock(g_uiMutex);
+
+                // 1) Remove child from parent's children vector
+                auto itParent = g_windows.find(selfWindow);
+                if (itParent != g_windows.end())
+                {
+                    auto& children = itParent->second.children;
+                    auto it = std::remove(children.begin(), children.end(), childWindow);
+                    if (it != children.end())
+                        children.erase(it, children.end());
+                }
+
+                // 2) Clear child's parentWindow + anchor info
+                auto itChild = g_windows.find(childWindow);
+                if (itChild != g_windows.end())
+                {
+                    auto& childInfo = itChild->second;
+                    childInfo.parentWindow = nullptr;
+                    childInfo.attachLayout = nullptr;
+                    childInfo.attachAnchor = nullptr;
+                }
+            }
+
+            spdlog::debug("[RemoveChildWindow] parent={} child={}",
+                         static_cast<void*>(selfWindow),
+                         static_cast<void*>(childWindow));
         }
 
         void* __fastcall CreateNewWindowHook(void* cls /*WindowFunction*/, const void* nameStr, uint32_t flagsA,
@@ -1037,12 +1871,12 @@ namespace IHHook
                     g_handleToWindow[handle] = w;
 
                     auto& info = g_windows[w];
-                    info.window       = w;
+                    info.window = w;
                     info.windowHandle = handle;
 
-                    spdlog::info("[WIN HANDLE] handle={} window={}",
-                                 static_cast<const void*>(handle),
-                                 static_cast<const void*>(w));
+                    spdlog::debug("[WIN HANDLE] handle={} window={}",
+                                  static_cast<const void*>(handle),
+                                  static_cast<const void*>(w));
 
                     // NEW: root layout opportunistic bind
                     AttachRootLayoutForWindow_NoLock(w, "GetWindowHandle_root");
@@ -1060,7 +1894,7 @@ namespace IHHook
 
             return name;
         }
-        
+
         fox::ui::Window* __fastcall WindowCtorHook(fox::ui::Window* self,
                                                    fox::ui::WindowFunction* resourceCreator,
                                                    fox::String* name,
@@ -1081,7 +1915,7 @@ namespace IHHook
                 std::lock_guard<std::mutex> lock(g_uiMutex);
 
                 auto& info = g_windows[window];
-                info.window         = window;
+                info.window = window;
                 info.windowFunction = resourceCreator;
                 if (!nameStr.empty())
                     info.windowName = nameStr;
@@ -1090,9 +1924,12 @@ namespace IHHook
 
                 // NEW: root layout opportunistic bind
                 AttachRootLayoutForWindow_NoLock(window, "WindowCtor_root");
+
+                // NEW: raw tracking, independent of WindowInfo semantics
+                TrackWindow_NoLock(window);
             }
 
-            spdlog::info(
+            spdlog::debug(
                 "[WIN CTOR] retWin={} self={} resourceCreator={} name=\"{}\" hash=#{:016X} type={} creatorIface={} zOrder={} groupId={} updateMask={}",
                 static_cast<void*>(window),
                 static_cast<void*>(self),
@@ -1110,8 +1947,54 @@ namespace IHHook
 
         void __fastcall WindowDtorHook(fox::ui::Window* self)
         {
-            spdlog::debug("[WIN DTOR] self={}", static_cast<void*>(self));
+            // Call the real destructor first so engine can do its thing.
             WindowDtor(self);
+
+            {
+                std::lock_guard<std::mutex> lock(g_uiMutex);
+
+                // 1) Drop this window from any parent->children lists
+                for (auto& kv : g_windows)
+                {
+                    auto& vec = kv.second.children;
+                    auto it = std::remove(vec.begin(), vec.end(), self);
+                    if (it != vec.end())
+                        vec.erase(it, vec.end());
+                }
+
+                // 2) Erase its own WindowInfo entry
+                g_windows.erase(self);
+
+                // 3) Remove from windowFunction -> window map
+                for (auto it = g_windowFuncToWindow.begin(); it != g_windowFuncToWindow.end();)
+                {
+                    if (it->second == self)
+                        it = g_windowFuncToWindow.erase(it);
+                    else
+                        ++it;
+                }
+
+                // 4) Remove from handle -> window map
+                for (auto it = g_handleToWindow.begin(); it != g_handleToWindow.end();)
+                {
+                    if (it->second == self)
+                        it = g_handleToWindow.erase(it);
+                    else
+                        ++it;
+                }
+
+                {
+                    auto it = g_seenWindowSet.find(self);
+                    if (it != g_seenWindowSet.end())
+                        g_seenWindowSet.erase(it);
+
+                    auto itV = std::remove(g_seenWindows.begin(), g_seenWindows.end(), self);
+                    if (itV != g_seenWindows.end())
+                        g_seenWindows.erase(itV, g_seenWindows.end());
+                }
+
+                spdlog::debug("[WIN DTOR] cleaned self={}", static_cast<void*>(self));
+            }
         }
 
         void __fastcall ProcessWindowHook(fox::ui::Window* self,
@@ -1154,7 +2037,7 @@ namespace IHHook
             UpdateWindowLayouts(self, groupId);
         }
 
- void __fastcall SetLayoutInfoHook(void* windowHandle, const void* layoutInfo)
+        void __fastcall SetLayoutInfoHook(void* windowHandle, const void* layoutInfo)
         {
             // Call the real thing first to keep engine semantics intact
             SetLayoutInfo(windowHandle, layoutInfo);
@@ -1200,7 +2083,7 @@ namespace IHHook
                 }
             }
 
-            spdlog::info(
+            spdlog::debug(
                 "[SetLayoutInfo] handle={} layoutInfo={} window={} layoutsCount={} firstLayout={}",
                 windowHandle,
                 layoutInfo,
@@ -1249,7 +2132,8 @@ namespace IHHook
             GraphUpdate(selfGraph);
         }
 
-        fox::ui::Layout* __fastcall GetUixLayoutHook(void* manager, const fox::ui::WindowInterface* windowIface, fox::StrCode layoutId)
+        fox::ui::Layout* __fastcall GetUixLayoutHook(void* manager, const fox::ui::WindowInterface* windowIface,
+                                                     fox::StrCode layoutId)
         {
             auto* layout = GetUixLayout(manager, windowIface, layoutId);
             if (!layout)
@@ -1262,7 +2146,7 @@ namespace IHHook
                 BucketLayoutForIfaceAndHandle_NoLock(windowIface, layout);
             }
 
-            spdlog::info("[GetUixLayout] mgr={} iface={} layoutId=#{:08X} layout={}",
+            spdlog::debug("[GetUixLayout] mgr={} iface={} layoutId=#{:08X} layout={}",
                          manager, windowIface, (uint32_t)layoutId, layout);
 
             return layout;
@@ -1288,8 +2172,8 @@ namespace IHHook
                 }
             }
 
-            spdlog::debug("[CLC] childComp={} parentComp={} portPtr={}",
-                          childComp, parentComp, portPtr);
+            spdlog::info("[CLC] childComp={} childType={} parentComp={} parentType={} portPtr={}",
+                         childComp, GetTypeFor(childComp), parentComp, GetTypeFor(parentComp), portPtr);
             ConnectLayoutComponent(childComp, parentComp, portPtr);
         }
 
@@ -1304,8 +2188,15 @@ namespace IHHook
                 }
             }
 
-            spdlog::debug("[CLU] childComp={} parentComp={} portSid=#{:08X}",
-                          childComp, parentComp, portSid);
+            spdlog::info("[CLU] child={} childType={} parent={} parentType={} portSid=#{:08X}",
+                         static_cast<const void*>(childComp),
+                         GetTypeFor(childComp),
+                         static_cast<const void*>(parentComp),
+                         GetTypeFor(parentComp),
+                         portSid);
+
+            // spdlog::debug("[CLU] childComp={} parentComp={} portSid=#{:08X}",
+            //               childComp, parentComp, portSid);
 
             ConnectLayoutUtilityComponent(childComp, parentComp, portSid);
         }
@@ -1317,9 +2208,10 @@ namespace IHHook
             return ok;
         }
 
-        void __fastcall ConnectChildWindowToNodeHook(fox::ui::Window* parentWin, fox::ui::WindowHandle* childHandle, fox::ui::LayoutComponent* parentComp, void* portPtr)
+        void __fastcall ConnectChildWindowToNodeHook(fox::ui::Window* parentWin, fox::ui::WindowHandle* childHandle,
+                                                     fox::ui::LayoutComponent* parentComp, void* portPtr)
         {
-            fox::ui::Layout* layout   = nullptr;
+            fox::ui::Layout* layout = nullptr;
             fox::ui::Window* childWin = nullptr;
 
             {
@@ -1346,7 +2238,7 @@ namespace IHHook
                 if (childWin)
                 {
                     auto& childInfo = g_windows[childWin];
-                    childInfo.window       = childWin;
+                    childInfo.window = childWin;
                     childInfo.parentWindow = parentWin;
                     childInfo.attachLayout = layout;
                     childInfo.attachAnchor = portPtr;
@@ -1364,10 +2256,11 @@ namespace IHHook
             }
 
             spdlog::debug(
-                "[ANCHOR] parentWin={} childHandle={} parentComp={} portPtr={} layout={} childWin={}",
+                "[ANCHOR] parentWin={} childHandle={} parentComp={} parentType={} portPtr={} layout={} childWin={}",
                 static_cast<const void*>(parentWin),
                 static_cast<const void*>(childHandle),
                 static_cast<const void*>(parentComp),
+                GetTypeFor(parentComp),
                 portPtr,
                 static_cast<const void*>(layout),
                 static_cast<void*>(childWin));
@@ -1391,7 +2284,7 @@ namespace IHHook
                 if (childWin)
                 {
                     auto& childInfo = g_windows[childWin];
-                    childInfo.window       = childWin;
+                    childInfo.window = childWin;
                     childInfo.parentWindow = parentWin;
                     childInfo.windowHandle = childHandle;
 
@@ -1411,7 +2304,7 @@ namespace IHHook
 
                     // NEW: root layout bind on both parent and child
                     AttachRootLayoutForWindow_NoLock(parentWin, "ConnectChildWindowToRoot_parent");
-                    AttachRootLayoutForWindow_NoLock(childWin,  "ConnectChildWindowToRoot_child");
+                    AttachRootLayoutForWindow_NoLock(childWin, "ConnectChildWindowToRoot_child");
 
                     BindHandleLayoutsToWindow_NoLock(childHandle, childWin);
                 }
@@ -1436,7 +2329,7 @@ namespace IHHook
         void __fastcall ConnectWindowToParentHook(void* windowFunction, void* parentComp, void* portPtr)
         {
             fox::ui::Window* ownerWindow = nullptr;
-            fox::ui::Layout* layout      = nullptr;
+            fox::ui::Layout* layout = nullptr;
 
             {
                 std::lock_guard<std::mutex> lock(g_uiMutex);
@@ -1536,9 +2429,11 @@ namespace IHHook
             BuildTextAreaPack(modelNodeText, out);
         }
 
-        void __fastcall ApplyTextAndMeasureHook(void* act, void* node, void* unitsCtx, void* fmtCtx)
+        void __fastcall ApplyTextAndMeasureHook(fox::ui::ActSetText* act, fox::ui::ModelNode* node, void* unitsCtx, void* fmtCtx)
         {
             ApplyTextAndMeasure(act, node, unitsCtx, fmtCtx);
+
+            spdlog::info("[ACT SET TEXT APPLY] self={} node={}", act, node);
         }
 
         void __fastcall RunAnalysisHook(ActSetText* self)
@@ -1552,8 +2447,8 @@ namespace IHHook
         }
 
         void __fastcall LayoutConnectHook(void* uiUtil, fox::ui::WindowHandle* windowIface,
-                                  fox::StrCode sidA, fox::StrCode sidB,
-                                  fox::StrCode sidModel, fox::StrCode sidPort)
+                                          fox::StrCode sidA, fox::StrCode sidB,
+                                          fox::StrCode sidModel, fox::StrCode sidPort)
         {
             // First, let the engine wire everything
             LayoutConnect(uiUtil, windowIface, sidA, sidB, sidModel, sidPort);
@@ -1579,7 +2474,7 @@ namespace IHHook
                 BucketLayoutForIfaceAndHandle_NoLock(windowIface, layoutB);
             }
 
-            spdlog::info(
+            spdlog::debug(
                 "[LayoutConnect] uiUtil={} iface={} sidA=#{:08X} sidB=#{:08X} sidModel=#{:08X} sidPort=#{:08X} root={} B={}",
                 uiUtil,
                 windowIface,
@@ -1609,9 +2504,9 @@ namespace IHHook
             {
                 std::lock_guard<std::mutex> lock(g_uiMutex);
 
-                auto& info          = g_windows[w];
-                info.window         = w;
-                info.parentWindow   = parent;
+                auto& info = g_windows[w];
+                info.window = w;
+                info.parentWindow = parent;
                 info.windowFunction = const_cast<fox::ui::WindowResourceCreator*>(rc);
                 if (!nameStr.empty())
                     info.windowName = nameStr;
@@ -1620,7 +2515,7 @@ namespace IHHook
                 AttachRootLayoutForWindow_NoLock(w, "WindowCreate_root");
             }
 
-            spdlog::info("[WINDOW CREATE] window={} parent={} name=\"{}\" hash=#{:016X} len={}",
+            spdlog::debug("[WINDOW CREATE] window={} parent={} name=\"{}\" hash=#{:016X} len={}",
                          static_cast<void*>(w),
                          static_cast<void*>(parent),
                          nameStr,
@@ -1759,6 +2654,32 @@ namespace IHHook
             return ok;
         }
 
+        int __fastcall ActSetTextAnalysisHook(fox::ui::ActSetText*   self,
+                                                fox::String*           text,
+                                                void*         groupA,   // FontGroupInfo*
+                                                void*         groupB,   // FONTDATATYPE
+                                                void*           dataType, // [rsp+38h]
+                                                uint16_t               param5,
+                                                float                  param6)
+        {
+            int retInt = ActSetTextAnalysis(self, text, groupA, groupB, dataType, param5, param6);
+            auto base   = reinterpret_cast<uint8_t*>(self);
+            auto cstr   = *reinterpret_cast<const char* const*>(base + 0x98);
+               spdlog::info("[ACT SET TEXT] self={} text=\"{}\" rawText=\"{}\" vtbl={}",
+                 static_cast<void*>(self),
+                 FoxStringToStd(text),
+                 FoxStringToHex(text),
+                 *reinterpret_cast<void* const*>(self));
+            
+            return retInt;
+        }
+
+        void __fastcall ActSetTextHelperHook(fox::ui::ActSetText* self)
+        {
+            spdlog::info("[ACT SET TEXT] self={}", static_cast<void*>(self));
+            ActSetTextHelper(self);
+        }
+
         void __fastcall ReadUiModelNodeHook(fox::ui::ModelNode* self,
                                             fox::ui::ModelFileHeader* fileHeader,
                                             fox::ui::ModelNodeHeader* nodeHeader,
@@ -1823,13 +2744,20 @@ namespace IHHook
             // View Tree Print
             if (JustPressed(VK_F8))
             {
-                DumpWindowAndLayoutTree();    
+                spdlog::info("[HK] F8 -> Printing View Tree");
+                DumpWindowAndLayoutTree();
             }
-            
+
             if (JustPressed(VK_F9))
             {
-                spdlog::info("[HK] F8 -> unified view tree (Windows / Layouts / Models / Nodes)");
-                DumpUnifiedViewTree();
+                spdlog::info("[HK] F9 -> Printing Orphan Layout Tree");
+                DumpOrphanLayouts();
+            }
+
+            if (JustPressed(VK_F10))
+            {
+                spdlog::info("[HK] F10 -> Printing RAW WindowSlot View Tree");
+                DumpWindowSlotViewTreeFromSeenWindows();
             }
         }
 
@@ -1872,6 +2800,7 @@ namespace IHHook
             // Window route
             CREATE_HOOK(UpdateWindowGraph)
             CREATE_HOOK(AddChildWindow)
+            CREATE_HOOK(RemoveChildWindow)
             CREATE_HOOK(CreateNewWindow)
             CREATE_HOOK(GetWindowManager)
             CREATE_HOOK(GetWindowLayout)
@@ -1952,9 +2881,12 @@ namespace IHHook
             CREATE_HOOK(SetupModel)
             CREATE_HOOK(ReadUiModelFile)
             CREATE_HOOK(ReadUiModelNode)
-            
+
             CREATE_HOOK(GetWindowName)
             CREATE_HOOK(CreateChildWindows)
+            
+            CREATE_HOOK(ActSetTextAnalysis)
+            CREATE_HOOK(ActSetTextHelper)
 
             //-------------------ENABLE-------------------------
 
@@ -1984,6 +2916,7 @@ namespace IHHook
             // Window route
             ENABLEHOOK(UpdateWindowGraph)
             ENABLEHOOK(AddChildWindow)
+            ENABLEHOOK(RemoveChildWindow)
             ENABLEHOOK(CreateNewWindow)
             ENABLEHOOK(GetWindowManager)
             ENABLEHOOK(GetWindowLayout)
@@ -2067,6 +3000,9 @@ namespace IHHook
 
             ENABLEHOOK(GetWindowName)
             ENABLEHOOK(CreateChildWindows)
+
+            ENABLEHOOK(ActSetTextAnalysis)
+            ENABLEHOOK(ActSetTextHelper)
         }
 
         // Optional Lua glue placeholders

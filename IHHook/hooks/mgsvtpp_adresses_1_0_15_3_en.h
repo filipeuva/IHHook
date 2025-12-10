@@ -286,5 +286,9 @@ namespace IHHook {
 		{"GetWindowInterfaceLayout",0x141DCB580},
 		{"GetWindowName",0x145879DA0},
 		{"CreateChildWindows",0x14D84B270},
+		{"RemoveChildWindow",0x141dcc090},
+		{"LayoutComponentCtor",0x14d9651d0},
+		{"ActSetTextAnalysis",0x141DE9610},
+		{"ActSetTextHelper",0x14d930ba0},
 	};//map mgsvtpp_adresses_1_0_15_3_en
 }//namespace IHHook

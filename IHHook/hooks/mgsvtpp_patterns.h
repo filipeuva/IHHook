@@ -249,5 +249,8 @@ namespace IHHook {
 		{"GetWindowInterfaceLayout","48 8B 41 28 C3"},
 		{"GetWindowName","48 8B 41 20 C3"},
 		{"CreateChildWindows","48 83 EC 48 48 8B 41 50 44 8B 4A 38 4C 8D 41 18 48 89 44 24 30"},
+		{"RemoveChildWindow","48 83 EC 28 4C 8B C2 48 85 D2 0F 84 ? ? ? ? 48 89 74 24 38 48 8D 71 48 48 89 7C 24 20 8B 7E 08 83 FF FF 0F 84 ? ? ? ? 8B D7 48 C1 E2 04 48 03 56 18 48 8B 02 4C 39 00"},
+		{"ActSetTextAnalysis","40 56 41 54 41 55 48 83 EC 50 48 83 B9 98 00 00 00 00 0F 29 74 24 40 4D 8B E1 4D 8B E8 48 8B F1 75 13 48 81 C1 90 00 00 00"},
+		{"ActSetTextHelper","49 89 E3 55 53 57 49 8D AB A1 FF FF FF 48 81 EC C0 00 00 00"},
 	};//map mgsvtpp_patterns
 }//namespace IHHook

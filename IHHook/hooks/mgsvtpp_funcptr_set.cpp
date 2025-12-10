@@ -287,5 +287,8 @@ namespace IHHook {
 		GetWindowInterfaceLayout = (GetWindowInterfaceLayoutFunc*)addressSet["GetWindowInterfaceLayout"];
 		GetWindowName = (GetWindowNameFunc*)addressSet["GetWindowName"];
 		CreateChildWindows = (CreateChildWindowsFunc*)addressSet["CreateChildWindows"];
+		RemoveChildWindow = (RemoveChildWindowFunc*)addressSet["RemoveChildWindow"];
+		ActSetTextAnalysis = (ActSetTextAnalysisFunc*)addressSet["ActSetTextAnalysis"];
+		ActSetTextHelper = (ActSetTextHelperFunc*)addressSet["ActSetTextHelper"];
 	}//SetFuncPtrs
 }//namespace IHHook

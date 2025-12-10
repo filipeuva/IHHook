@@ -302,3 +302,7 @@ GetWindowInterfaceLayoutFunc* GetWindowInterfaceLayout;
 
 GetWindowNameFunc* GetWindowName;
 CreateChildWindowsFunc* CreateChildWindows;
+RemoveChildWindowFunc* RemoveChildWindow;
+
+ActSetTextAnalysisFunc* ActSetTextAnalysis;
+ActSetTextHelperFunc* ActSetTextHelper;

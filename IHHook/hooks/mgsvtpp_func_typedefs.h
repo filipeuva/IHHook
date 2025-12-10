@@ -233,6 +233,7 @@ namespace fox
         using ModelFileHeader = void; // ModelFileHeader*
         using ModelNodeHeader = void; // ModelNodeHeader*
         using UiUtilityImpl = void;
+        using ActSetText = void;
     }
 }
 
@@ -449,6 +450,18 @@ typedef fox::ui::Layout* (__fastcall GetWindowInterfaceLayoutFunc)(fox::ui::Wind
 
 typedef fox::String* (__fastcall GetWindowNameFunc)(fox::ui::Window* self);
 typedef bool (__fastcall CreateChildWindowsFunc)(void* creator, fox::ui::Window* parentWin);
+typedef void (__fastcall RemoveChildWindowFunc)(fox::ui::Window* self, fox::ui::Window* child);
+
+typedef int (__fastcall ActSetTextAnalysisFunc)(
+    fox::ui::ActSetText*   self,
+    fox::String*           text,
+    void*         groupA,   // FontGroupInfo*
+    void*         groupB,   // FONTDATATYPE
+    void*           dataType, // [rsp+38h]
+    uint16_t               param5,
+    float                  param6
+    );
+typedef void (__fastcall ActSetTextHelperFunc)(fox::ui::ActSetText* self);
 
 //tex the (extern of the) function pointers
 extern StrCode64Func* StrCode64;
@@ -743,3 +756,7 @@ extern GetWindowInterfaceLayoutFunc* GetWindowInterfaceLayout;
 
 extern GetWindowNameFunc* GetWindowName;
 extern CreateChildWindowsFunc* CreateChildWindows;
+extern RemoveChildWindowFunc* RemoveChildWindow;
+
+extern ActSetTextAnalysisFunc* ActSetTextAnalysis;
+extern ActSetTextHelperFunc* ActSetTextHelper;
