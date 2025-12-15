@@ -229,11 +229,30 @@ namespace fox
         using WindowInterface = void; // fox::ui::WindowInterface ?
         using WindowManager = void;
         using WindowResourceCreator = void;
-        using TextUnit = void;
         using ModelFileHeader = void; // ModelFileHeader*
         using ModelNodeHeader = void; // ModelNodeHeader*
         using UiUtilityImpl = void;
         using ActSetText = void;
+        using TextUnit = void;
+
+        struct TextUnitHeader
+        {
+            // Assumed size 0x20
+            char*     buffer = (char*)0x1420a0ab8;   // 0x00, points to text bytes (or to global empty)
+            uint32_t  u8;       // 0x08, "param_8"
+            uint32_t  flags = 0;    // 0x0C
+
+            uint16_t  chars;       // 0x10, param_3
+            uint16_t  font;       // 0x12, param_4
+            float     sizeWidth;       // 0x14, param_5
+            float     sizeHeight;       // 0x18, param_6
+
+            uint32_t  extraFlags;       // 0x1C, param_7
+
+            // there is more after this (q[2].hi, q[3].hi, q[4]..q[7]),
+            // but TextUnit::Setting doesn’t touch it.
+            //uint64_t  rest[4];  // 0x20..0x5F, keep zeroed or let engine fill
+        };
     }
 }
 
@@ -293,6 +312,15 @@ struct TextAreaPack
 typedef void (__fastcall BuildTextAreaPackFunc)(/*RCX*/void* modelNodeText, /*RDX*/TextAreaPack* out);
 typedef int (__fastcall AttachTextAndFinalizeFunc)(void* owner, void* container, void* node, void* unitsCtx);
 typedef void (__fastcall ApplyTextAndMeasureFunc)(void* act, void* node, void* unitsCtx, void* fmtCtx);
+typedef int (__fastcall TextUnitBuilderFunc)(const char* text,   // RCX
+    void*       p2,     // RDX
+    void*       p3,     // R8
+    uint32_t    p4,     // R9D
+    uint32_t    p5,     // [stack]
+    uint32_t    p6,     // [stack]
+    void*       p7,     // [stack]
+    uint32_t    p8      // [stack]
+    );
 
 struct ActSetText
 {
@@ -347,7 +375,7 @@ typedef void (__fastcall RegisterWindowFactoryFunc)(void* collector, void* facto
 typedef void* (__fastcall GetWindowHandleFunc)(void* mgr, void* windowFunction);
 typedef void (__fastcall SetLayoutInfoFunc)(void* windowHandle, const void* layoutInfo);
 typedef void* (__fastcall GetTextUnitsFunc)(int index);
-typedef void (__fastcall SetTextUnitFunc)(fox::ui::TextUnit* selfTextUnit, char* text, uint32_t flags, uint16_t chars, uint16_t font,
+typedef void (__fastcall SetTextUnitFunc)(void* selfTextUnit, char* text, uint32_t flags, uint16_t chars, uint16_t font,
                                           float sizeWidth, float sizeHeight, uint32_t extraFlags, uint32_t p8);
 // fox::ui::TextUnit::Setting(
 //     param_1,          // TextUnit*
@@ -392,7 +420,7 @@ typedef bool (__fastcall AnnounceLogViewFunc)(void* cdm, // RCX: tpp::ui::hud::C
                                               uint8_t opts // R9B : aux/route selector
 );
 
-typedef void (__fastcall SetTextForModelNodeTextInternalFunc)(void* modelNodeText, void* textUnit /*TextUnit**/,
+typedef void (__fastcall SetTextForModelNodeTextInternalFunc)(fox::ui::ModelNode* modelNodeText, fox::ui::TextUnit* textUnit /*TextUnit**/,
                                                               const char* text, bool isLocalized);
 typedef void (__fastcall SetLayoutActiveFunc)(void* windowIface, bool enable);
 typedef void (__fastcall SetUiModelNodeTranslateFunc)(void* node, const float* v);
@@ -760,3 +788,4 @@ extern RemoveChildWindowFunc* RemoveChildWindow;
 
 extern ActSetTextAnalysisFunc* ActSetTextAnalysis;
 extern ActSetTextHelperFunc* ActSetTextHelper;
+extern TextUnitBuilderFunc* TextUnitBuilder;

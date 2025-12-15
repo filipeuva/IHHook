@@ -289,5 +289,6 @@ namespace IHHook {
 		{"RemoveChildWindow",0x141dcc090},
 		{"ActSetTextAnalysis",0x141DE9610},
 		{"ActSetTextHelper",0x14d930ba0},
+		{"TextUnitBuilder", 0x141dc36b0}
 	};//map mgsvtpp_adresses_1_0_15_3_jp
 }//namespace IHHook

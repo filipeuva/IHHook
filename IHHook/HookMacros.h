@@ -8,15 +8,17 @@
 
 #include "spdlog/spdlog.h"
 
-namespace IHHook {
-	extern std::map<std::string, int64_t> addressSet;
+namespace IHHook
+{
+    extern std::map<std::string, int64_t> addressSet;
+    extern std::atomic<bool> shouldApplyEnable;
 }
 
 //DEBUGNOW put this somewhere or CULL
-	//DEBUGNOW signatures are more robust to game updates/different game versions than straight addresses, but take a long time to search
-	//since IHHook is started on it's own thread game initialisation will continue, and IHHook wont be ready in time to start up IH properly.
-	//an alternative would be to do a hook to an early execution point of the game and init  ihhook there,
-	//but given the low rate of updates of the game it's better to stick with direct addresses, but have signatures documented as a backup
+//DEBUGNOW signatures are more robust to game updates/different game versions than straight addresses, but take a long time to search
+//since IHHook is started on it's own thread game initialisation will continue, and IHHook wont be ready in time to start up IH properly.
+//an alternative would be to do a hook to an early execution point of the game and init  ihhook there,
+//but given the low rate of updates of the game it's better to stick with direct addresses, but have signatures documented as a backup
 
 
 //tex macros to declare the various accoutrement required for MH_Hook and straight hooks
@@ -82,12 +84,22 @@ if (addressSet[#name]==NULL) {\
 
 //ASSUMPTION name##Addr of runtime memory address has been defined
 #define ENABLEHOOK(name)\
-MH_STATUS name##EnableStatus = MH_EnableHook((LPVOID*)addressSet[#name]);\
-if (name##EnableStatus != MH_OK) {\
-	spdlog::error("MH_EnableHook failed for {} with code {}", #name, name##EnableStatus);\
+if (addressSet[#name]==NULL) {\
+	spdlog::error("CREATE_HOOK addressSet[{}]==NULL", #name);\
+} else if (shouldApplyEnable) {\
+	MH_STATUS name##EnableStatus = MH_EnableHook((LPVOID*)addressSet[#name]);\
+	if (name##EnableStatus != MH_OK) {\
+		spdlog::error("MH_EnableHook failed for {} with code {}", #name, name##EnableStatus);\
+	}\
 } else {\
-	spdlog::debug("MH_EnableHook MH_OK for {}", #name);\
+	MH_STATUS name##QueueEnableStatus = MH_QueueEnableHook((LPVOID*)addressSet[#name]);\
+	if (name##QueueEnableStatus != MH_OK) {\
+		spdlog::error("MH_QueueEnableHook failed for {} with code {}", #name, name##QueueEnableStatus);\
+	} else {\
+		spdlog::debug("MH_QueueEnableHook MH_OK for {}", #name);\
+	}\
 }
+
 //Example use:
 //ENABLEHOOK(lua_newstate);
 //Expands to:
@@ -112,3 +124,11 @@ if (name##DisableStatus != MH_OK) {\
 //	spdlog::error("MH_DisableHook failed for {} with code {}", "lua_newstate", lua_newstateDisableStatus);\
 //}
 
+// one freeze/unfreeze total
+#define APPLYHOOKS() \
+MH_STATUS _st = MH_ApplyQueued(); \
+if (_st != MH_OK) spdlog::error("MH_ApplyQueued failed with code {}", (int)_st); \
+else {\
+	spdlog::debug("MH_ApplyQueued MH_OK");\
+	shouldApplyEnable = true;\
+}

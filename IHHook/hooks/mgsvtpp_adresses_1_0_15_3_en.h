@@ -290,5 +290,6 @@ namespace IHHook {
 		{"LayoutComponentCtor",0x14d9651d0},
 		{"ActSetTextAnalysis",0x141DE9610},
 		{"ActSetTextHelper",0x14d930ba0},
+		{"TextUnitBuilder", 0x141dc36b0}
 	};//map mgsvtpp_adresses_1_0_15_3_en
 }//namespace IHHook

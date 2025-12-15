@@ -306,3 +306,4 @@ RemoveChildWindowFunc* RemoveChildWindow;
 
 ActSetTextAnalysisFunc* ActSetTextAnalysis;
 ActSetTextHelperFunc* ActSetTextHelper;
+TextUnitBuilderFunc* TextUnitBuilder;

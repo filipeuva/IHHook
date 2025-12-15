@@ -1376,18 +1376,46 @@ namespace IHHook
             SetTextForModelNodeText(uix, nodeText, textUnit, rawText, isLocalized);
         }
 
-        void __fastcall SetTextForModelNodeTextInternalHook(void* nodeText, void* textUnit, const char* rawText,
-                                                            bool isLocalized)
+        inline void DumpTextUnit(void* textUnit, std::string_view prefix = {})
+        {
+            if (!textUnit)
+            {
+                spdlog::info("[DUMPTU {}] textUnit=null", prefix);
+                return;
+            }
+
+            auto* tu = reinterpret_cast<fox::ui::TextUnitHeader*>(textUnit);
+
+            const char* buf = tu->buffer ? tu->buffer : "<null>";
+
+            spdlog::info(
+                "[DUMPTU {}] textUnit={} buffer=\"{}\" u8={} flags={} chars={} font={} "
+                "sizeWidth={} sizeHeight={} extraFlags={}",
+                prefix,
+                textUnit,
+                buf,
+                tu->u8,
+                tu->flags,
+                tu->chars,
+                tu->font,
+                tu->sizeWidth,
+                tu->sizeHeight,
+                tu->extraFlags
+            );
+        }
+
+        void __fastcall SetTextForModelNodeTextInternalHook(fox::ui::ModelNode* modelNodeText, fox::ui::TextUnit* textUnit /*TextUnit**/,
+                                                              const char* rawText, bool isLocalized)
         {
             if (rawText)
             {
                 std::lock_guard<std::mutex> lock(g_uiMutex);
-                g_nodeTextByPtr[reinterpret_cast<fox::ui::ModelNode*>(nodeText)] = rawText;
+                g_nodeTextByPtr[reinterpret_cast<fox::ui::ModelNode*>(modelNodeText)] = rawText;
             }
 
-            spdlog::debug("[STFMNTI] nodeText={} textUnit={} rawText={} isLocalized={}", nodeText, textUnit,
+            spdlog::info("[STFMNTI] nodeText={} textUnit={} rawText={} isLocalized={}", modelNodeText, static_cast<const void*>(textUnit),
                           rawText, isLocalized);
-            SetTextForModelNodeTextInternal(nodeText, textUnit, rawText, isLocalized); // original
+            SetTextForModelNodeTextInternal(modelNodeText, textUnit, rawText, isLocalized); // original
         }
 
         void __fastcall SetTextUnitsForModelNodeTextHook(void* uix, void* nodeText, void* textUnit, uint64_t stringId)
@@ -2106,12 +2134,14 @@ namespace IHHook
             return tu;
         }
 
-        void __fastcall SetTextUnitHook(void* selfTextUnit, char* text, uint32_t flags, uint16_t p3, uint16_t p4,
-                                        float size, float tracking, uint32_t p7, uint32_t p8)
+        void __fastcall SetTextUnitHook(void* selfTextUnit, char* text, uint32_t flags, uint16_t chars, uint16_t font,
+                                        float sizeWidth, float sizeHeight, uint32_t extraFlags, uint32_t p8)
         {
-            SetTextUnit(selfTextUnit, text, flags, p3, p4, size, tracking, p7, p8);
-            spdlog::debug("[SET TU] selfTextUnit={} text={} flags={} p3={} p4={} size={} tracking={} p7={} p8={}",
-                          selfTextUnit, text, flags, p3, p4, size, tracking, p7, p8);
+            DumpTextUnit(selfTextUnit, "BEFORE");
+            SetTextUnit(selfTextUnit, text, flags, chars, font, sizeWidth, sizeHeight, extraFlags, p8);
+            spdlog::info("[SET TU] selfTextUnit={} text={} flags={} chars={} font={} sizeWidth={} sizeHeight={} extraFlags={} p8={}",
+                          selfTextUnit, text, flags, chars, font, sizeWidth, sizeHeight, extraFlags, p8);
+            DumpTextUnit(selfTextUnit, "AFTER");
         }
 
         void __fastcall DeleteTextUnitHook(void* uixImpl, void* textUnit)
@@ -2436,6 +2466,23 @@ namespace IHHook
             spdlog::info("[ACT SET TEXT APPLY] self={} node={}", act, node);
         }
 
+        int __fastcall TextUnitBuilderHook(const char* text,   // RCX
+            void*       p2,     // RDX
+            void*       p3,     // R8
+            uint32_t    p4,     // R9D
+            uint32_t    p5,     // [stack]
+            uint32_t    p6,     // [stack]
+            void*       p7,     // [stack]
+            uint32_t    p8      // [stack]
+            )
+        {
+            int retI = TextUnitBuilder(text, p2, p3, p4, p5, p6, p7, p8);
+
+            spdlog::info("[TextUnitBuilder] text={} p2={} p3={} p7={}", text, p2, p3, p7);
+            return retI;
+        }
+    
+
         void __fastcall RunAnalysisHook(ActSetText* self)
         {
             RunAnalysis(self);
@@ -2629,7 +2676,7 @@ namespace IHHook
         void __fastcall SetupModelHook(void* self)
         {
             SetupModel(self);
-            spdlog::debug("[SETUP MODEL] self={}", self);
+            spdlog::info("[SETUP MODEL] self={}", self);
         }
 
         bool __fastcall ReadUiModelFileHook(fox::ui::Model* model)
@@ -2846,6 +2893,7 @@ namespace IHHook
 
             CREATE_HOOK(BuildTextAreaPack)
             CREATE_HOOK(ApplyTextAndMeasure)
+            CREATE_HOOK(TextUnitBuilder)
             CREATE_HOOK(RunAnalysis)
 
             CREATE_HOOK(WindowCreate)
@@ -2962,6 +3010,7 @@ namespace IHHook
 
             ENABLEHOOK(BuildTextAreaPack)
             ENABLEHOOK(ApplyTextAndMeasure)
+            ENABLEHOOK(TextUnitBuilder)
             ENABLEHOOK(RunAnalysis)
 
             ENABLEHOOK(WindowCreate)

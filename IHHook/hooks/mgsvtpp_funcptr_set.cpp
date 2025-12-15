@@ -290,5 +290,6 @@ namespace IHHook {
 		RemoveChildWindow = (RemoveChildWindowFunc*)addressSet["RemoveChildWindow"];
 		ActSetTextAnalysis = (ActSetTextAnalysisFunc*)addressSet["ActSetTextAnalysis"];
 		ActSetTextHelper = (ActSetTextHelperFunc*)addressSet["ActSetTextHelper"];
+		TextUnitBuilder = (TextUnitBuilderFunc*)addressSet["TextUnitBuilder"];
 	}//SetFuncPtrs
 }//namespace IHHook

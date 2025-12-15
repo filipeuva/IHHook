@@ -64,6 +64,7 @@ namespace IHHook {
 	size_t RealBaseAddr;
 	bool isTargetExe = false;
 	std::map<std::string, int64_t> addressSet{};
+	std::atomic<bool> shouldApplyEnable = false;
 	std::map<std::string, char*> patterns{};
 
 	terminate_function terminate_Original;
@@ -882,5 +883,7 @@ namespace IHHook {
 		Hooks_Vehicle::CreateHooks(); //ZIP: For vehicles
 		Hooks_FoxString::CreateHooks(); //ZIP: FoxString hook
 		Hooks_Camo::CreateHooks();
+
+		APPLYHOOKS();
 	}//CreateAllHooks
 }//namespace IHHook
